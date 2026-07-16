@@ -116,23 +116,6 @@ void SearchParameters::ShrinkToFit(const std::vector<DiscreteScan2D>& scans,
   }
 }
 
-PrecomputationGridStack2D::PrecomputationGridStack2D(
-    const ProbabilityGrid& probability_grid,
-    const FastCorrelativeScanMatcherOptions2D& options) {
-  CHECK_GE(options.branch_and_bound_depth, 1);
-  const int max_width = 1 << (options.branch_and_bound_depth - 1);
-  precomputation_grids_.reserve(options.branch_and_bound_depth);
-  std::vector<float> reusable_intermediate_grid;
-  const CellLimits limits = probability_grid.map_limits().cell_limits();
-  reusable_intermediate_grid.reserve((limits.num_x_cells + max_width - 1) *
-                                     limits.num_y_cells);
-  for (int i = 0; i != options.branch_and_bound_depth; ++i) {
-    const int width = 1 << i;
-    precomputation_grids_.emplace_back(probability_grid, limits, width,
-                                       &reusable_intermediate_grid);
-  }
-}
-
 FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
     const ProbabilityGrid& probability_grid,
     const FastCorrelativeScanMatcherOptions2D& options)
@@ -381,6 +364,7 @@ void FastCorrelativeScanMatcher2D::ScoreCandidates(
           xy_index.y() + candidate.y_index_offset);
       sum += precomputation_grid.GetValue(proposed_xy_index);
     }
+    
     candidate.score = precomputation_grid.ToScore(
         sum / static_cast<float>(discrete_scans[candidate.scan_index].size()));
   }

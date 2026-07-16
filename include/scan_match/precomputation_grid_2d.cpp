@@ -112,6 +112,28 @@ PrecomputationGrid2D::PrecomputationGrid2D(
   // }
 }
 
+int PrecomputationGrid2D::GetValue(const Eigen::Array2i& xy_index) const {
+  const Eigen::Array2i local_xy_index = xy_index - offset_;
+  // The static_cast<unsigned> is for performance to check with 2 comparisons
+  // xy_index.x() < offset_.x() || xy_index.y() < offset_.y() ||
+  // local_xy_index.x() >= wide_limits_.num_x_cells ||
+  // local_xy_index.y() >= wide_limits_.num_y_cells
+  // instead of using 4 comparisons.
+  if (static_cast<unsigned>(local_xy_index.x()) >=
+          static_cast<unsigned>(wide_limits_.num_x_cells) ||
+      static_cast<unsigned>(local_xy_index.y()) >=
+          static_cast<unsigned>(wide_limits_.num_y_cells)) {
+    return 0;
+  }
+  const int stride = wide_limits_.num_x_cells;
+  return cells_[local_xy_index.x() + local_xy_index.y() * stride];
+}
+
+// Maps values from [0, 255] to [min_score, max_score].
+float PrecomputationGrid2D::ToScore(float value) const {
+  return min_score_ + value * ((max_score_ - min_score_) / 255.f);
+}
+
 uint8_t PrecomputationGrid2D::ComputeCellValue(const float probability) const {
   const int cell_value = std::lround((probability - min_score_) *
                                      (255.f / (max_score_ - min_score_)));

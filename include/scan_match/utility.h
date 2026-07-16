@@ -98,7 +98,7 @@ class MapLimits {
   // Returns the index of the cell containing the 'point' which may be outside
   // the map, i.e., negative or too large indices that will return false for
   // Contains().
-  Eigen::Array2i GetCellIndex(const Eigen::Vector2d& point) const {
+  Eigen::Array2i GetCellIndex(const Eigen::Vector2f& point) const {
     // Index values are row major and the top left has Eigen::Array2i::Zero()
     // and contains (centered_max_x, centered_max_y). We need to flip and
     // rotate.

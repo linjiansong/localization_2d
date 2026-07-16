@@ -78,27 +78,10 @@ class PrecomputationGrid2D {
 
   // Returns a value between 0 and 255 to represent probabilities between
   // min_score and max_score.
-  int GetValue(const Eigen::Array2i& xy_index) const {
-    const Eigen::Array2i local_xy_index = xy_index - offset_;
-    // The static_cast<unsigned> is for performance to check with 2 comparisons
-    // xy_index.x() < offset_.x() || xy_index.y() < offset_.y() ||
-    // local_xy_index.x() >= wide_limits_.num_x_cells ||
-    // local_xy_index.y() >= wide_limits_.num_y_cells
-    // instead of using 4 comparisons.
-    if (static_cast<unsigned>(local_xy_index.x()) >=
-            static_cast<unsigned>(wide_limits_.num_x_cells) ||
-        static_cast<unsigned>(local_xy_index.y()) >=
-            static_cast<unsigned>(wide_limits_.num_y_cells)) {
-      return 0;
-    }
-    const int stride = wide_limits_.num_x_cells;
-    return cells_[local_xy_index.x() + local_xy_index.y() * stride];
-  }
+  int GetValue(const Eigen::Array2i& xy_index) const;
 
   // Maps values from [0, 255] to [min_score, max_score].
-  float ToScore(float value) const {
-    return min_score_ + value * ((max_score_ - min_score_) / 255.f);
-  }
+  float ToScore(float value) const;
 
   const CellLimits& wide_limits() const { return wide_limits_; }
 
@@ -107,6 +90,7 @@ class PrecomputationGrid2D {
  private:
   uint8_t ComputeCellValue(float probability) const;
 
+ private:
   // Offset of the precomputation probability_grid in relation to the
   // 'probability_grid' including the additional 'width' - 1 cells.
   const Eigen::Array2i offset_;
