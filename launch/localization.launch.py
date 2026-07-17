@@ -32,6 +32,7 @@ def generate_launch_description():
             executable='rviz2',
             name='rviz2',
             output='screen',
+            parameters=[{'use_sim_time': True}]
         ),
 
         # 4. 你的定位节点
@@ -43,7 +44,7 @@ def generate_launch_description():
                     executable='localization_2d_node',
                     name='localization_2d_node',
                     output='screen',
-                    parameters=[]
+                    parameters=[{'use_sim_time': True}]
                 )
             ]
         )

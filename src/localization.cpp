@@ -29,6 +29,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 
 #include <Eigen/Geometry>
+#include <opencv2/opencv.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <unordered_map>
@@ -442,116 +443,130 @@ void Localization::AddPointCloud(const PointCloud& point_cloud) {
     transformed_points.emplace_back(transformed_point);
   }
 
-  if (keyframe_buffer_.empty()) {
-    // match to global map
-    const auto [global_pose, global_pose_score] =
-        MatchGlobalMap(transformed_points, initial_pose);
+  const Eigen::Matrix4d global_pose = initial_pose_;
+  const float global_pose_score = 0.0;
 
-    const KeyframePtr new_keyframe = std::make_shared<Keyframe>();
-    new_keyframe->timestamp = point_cloud.timestamp;
-    new_keyframe->point_cloud = point_cloud;
-    new_keyframe->global_pose = global_pose;
-    new_keyframe->local_pose = global_pose;
-    new_keyframe->optimized_pose = global_pose;
-    new_keyframe->global_pose_score = global_pose_score;
-    new_keyframe->local_pose_score = global_pose_score;
-    keyframe_buffer_.emplace_back(new_keyframe);
-    ++keyframe_interval_;
-    update_keyframe_buffer_ = true;
+  const KeyframePtr new_keyframe = std::make_shared<Keyframe>();
+  new_keyframe->timestamp = point_cloud.timestamp;
+  new_keyframe->point_cloud = point_cloud;
+  new_keyframe->global_pose = global_pose;
+  new_keyframe->local_pose = global_pose;
+  new_keyframe->optimized_pose = global_pose;
+  new_keyframe->global_pose_score = global_pose_score;
+  new_keyframe->local_pose_score = global_pose_score;
+  keyframe_buffer_.emplace_back(new_keyframe);
+  ++keyframe_interval_;
+  update_keyframe_buffer_ = true;
 
-  } else {
-    // match to local map
-    const auto [curr_local_pose, local_pose_score] =
-        MatchLobalMap(transformed_points, initial_pose);
+  // if (keyframe_buffer_.empty()) {
+  //   // match to global map
+  //   const auto [global_pose, global_pose_score] =
+  //       MatchGlobalMap(transformed_points, initial_pose);
 
-    {
-      static auto debug_node = rclcpp::Node::make_shared("icp_debug_node");
-      static auto source_pub =
-          debug_node->create_publisher<sensor_msgs::msg::PointCloud2>(
-              "icp_source", 10);
-      static auto target_pub =
-          debug_node->create_publisher<sensor_msgs::msg::PointCloud2>(
-              "icp_target", 10);
-      static auto final_pub =
-          debug_node->create_publisher<sensor_msgs::msg::PointCloud2>(
-              "icp_final", 10);
+  //   const KeyframePtr new_keyframe = std::make_shared<Keyframe>();
+  //   new_keyframe->timestamp = point_cloud.timestamp;
+  //   new_keyframe->point_cloud = point_cloud;
+  //   new_keyframe->global_pose = global_pose;
+  //   new_keyframe->local_pose = global_pose;
+  //   new_keyframe->optimized_pose = global_pose;
+  //   new_keyframe->global_pose_score = global_pose_score;
+  //   new_keyframe->local_pose_score = global_pose_score;
+  //   keyframe_buffer_.emplace_back(new_keyframe);
+  //   ++keyframe_interval_;
+  //   update_keyframe_buffer_ = true;
+  // } else {
+  //   // match to local map
+  //   const auto [curr_local_pose, local_pose_score] =
+  //       MatchLobalMap(transformed_points, initial_pose);
 
-      auto convert_to_ros = [](const std::vector<Eigen::Vector3d>& pts) {
-        pcl::PointCloud<pcl::PointXYZ> cloud;
-        cloud.reserve(pts.size());
-        for (const auto& p : pts) {
-          cloud.push_back(pcl::PointXYZ(p.x(), p.y(), p.z()));
-        }
-        sensor_msgs::msg::PointCloud2 msg;
-        pcl::toROSMsg(cloud, msg);
-        msg.header.stamp = debug_node->now();
-        msg.header.frame_id = "map";  // 必须和你的 Rviz Global Frame 保持一致
-        return msg;
-      };
+  //   {
+  //     static auto debug_node = rclcpp::Node::make_shared("icp_debug_node");
+  //     static auto source_pub =
+  //         debug_node->create_publisher<sensor_msgs::msg::PointCloud2>(
+  //             "icp_source", 10);
+  //     static auto target_pub =
+  //         debug_node->create_publisher<sensor_msgs::msg::PointCloud2>(
+  //             "icp_target", 10);
+  //     static auto final_pub =
+  //         debug_node->create_publisher<sensor_msgs::msg::PointCloud2>(
+  //             "icp_final", 10);
 
-      // 当前帧变换后的点
-      source_pub->publish(convert_to_ros(transformed_points));
+  //     auto convert_to_ros = [](const std::vector<Eigen::Vector3d>& pts) {
+  //       pcl::PointCloud<pcl::PointXYZ> cloud;
+  //       cloud.reserve(pts.size());
+  //       for (const auto& p : pts) {
+  //         cloud.push_back(pcl::PointXYZ(p.x(), p.y(), p.z()));
+  //       }
+  //       sensor_msgs::msg::PointCloud2 msg;
+  //       pcl::toROSMsg(cloud, msg);
+  //       msg.header.stamp = debug_node->now();
+  //       msg.header.frame_id = "map";  // 必须和你的 Rviz Global Frame
+  //       保持一致 return msg;
+  //     };
 
-      std::vector<Eigen::Vector3d> target_points;
-      for (const auto& keyframe : keyframe_buffer_) {
-        for (const TimedPointCloud& timed_point :
-             keyframe->point_cloud.points) {
-          const Eigen::Vector3d transformed_point =
-              TransformPoint(keyframe->optimized_pose, timed_point.position);
-          target_points.emplace_back(transformed_point);
-        }
-      }
-      target_pub->publish(convert_to_ros(target_points));  // 地图上的匹配点
+  //     // 当前帧变换后的点
+  //     source_pub->publish(convert_to_ros(transformed_points));
 
-      std::vector<Eigen::Vector3d> final_points;
-      final_points.reserve(point_cloud.points.size());
-      for (const TimedPointCloud& timed_point : point_cloud.points) {
-        const Eigen::Vector3d transformed_point =
-            TransformPoint(curr_local_pose, timed_point.position);
-        final_points.emplace_back(transformed_point);
-      }
+  //     std::vector<Eigen::Vector3d> target_points;
+  //     for (const auto& keyframe : keyframe_buffer_) {
+  //       for (const TimedPointCloud& timed_point :
+  //            keyframe->point_cloud.points) {
+  //         const Eigen::Vector3d transformed_point =
+  //             TransformPoint(keyframe->optimized_pose, timed_point.position);
+  //         target_points.emplace_back(transformed_point);
+  //       }
+  //     }
+  //     target_pub->publish(convert_to_ros(target_points));  // 地图上的匹配点
 
-      final_pub->publish(convert_to_ros(final_points));  // Z
-    }
+  //     std::vector<Eigen::Vector3d> final_points;
+  //     final_points.reserve(point_cloud.points.size());
+  //     for (const TimedPointCloud& timed_point : point_cloud.points) {
+  //       const Eigen::Vector3d transformed_point =
+  //           TransformPoint(curr_local_pose, timed_point.position);
+  //       final_points.emplace_back(transformed_point);
+  //     }
 
-    // LOG(INFO) << "curr_local_pose = " << curr_local_pose;
-    // LOG(INFO) << "local_pose_score = " << local_pose_score;
+  //     final_pub->publish(convert_to_ros(final_points));  // Z
+  //   }
 
-    const Eigen::Matrix4d prev_local_pose = keyframe_buffer_.back()->local_pose;
-    const Eigen::Matrix4d delta_pose =
-        prev_local_pose.inverse() * curr_local_pose;
-    const double distance = delta_pose.block<3, 1>(0, 3).norm();  // meter
-    const Eigen::AngleAxisd axisd_angle(delta_pose.block<3, 3>(0, 0));
-    const double angle =
-        std::abs(axisd_angle.angle() * kRadianToDegree);  // degree
-    // LOG(INFO) << "angle = " << angle << ", distance = " << distance;
-    if (distance > kKeyframeMinDistance || angle > kKeyframeMinAngle) {
-      // if (true) {
-      const auto [global_pose, global_pose_score] =
-          MatchGlobalMap(transformed_points, curr_local_pose);
-      const KeyframePtr new_keyframe = std::make_shared<Keyframe>();
-      new_keyframe->timestamp = point_cloud.timestamp;
-      new_keyframe->point_cloud = point_cloud;
-      new_keyframe->global_pose = global_pose;
-      new_keyframe->local_pose = curr_local_pose;
-      new_keyframe->optimized_pose = curr_local_pose;
-      new_keyframe->global_pose_score = global_pose_score;
-      new_keyframe->local_pose_score = local_pose_score;
-      keyframe_buffer_.emplace_back(new_keyframe);
-      ++keyframe_interval_;
-      update_keyframe_buffer_ = true;
-    }
-  }
+  //   // LOG(INFO) << "curr_local_pose = " << curr_local_pose;
+  //   // LOG(INFO) << "local_pose_score = " << local_pose_score;
 
-  if (keyframe_interval_ >= kOptimizeKeyframeInterval) {
-    GlobalOptimize();
-    update_keyframe_buffer_ = true;
-    keyframe_interval_ = 0;
-  }
+  //   const Eigen::Matrix4d prev_local_pose =
+  //   keyframe_buffer_.back()->local_pose; const Eigen::Matrix4d delta_pose =
+  //       prev_local_pose.inverse() * curr_local_pose;
+  //   const double distance = delta_pose.block<3, 1>(0, 3).norm();  // meter
+  //   const Eigen::AngleAxisd axisd_angle(delta_pose.block<3, 3>(0, 0));
+  //   const double angle =
+  //       std::abs(axisd_angle.angle() * kRadianToDegree);  // degree
+  //   // LOG(INFO) << "angle = " << angle << ", distance = " << distance;
+  //   if (distance > kKeyframeMinDistance || angle > kKeyframeMinAngle) {
+  //     // if (true) {
+  //     const auto [global_pose, global_pose_score] =
+  //         MatchGlobalMap(transformed_points, curr_local_pose);
+  //     const KeyframePtr new_keyframe = std::make_shared<Keyframe>();
+  //     new_keyframe->timestamp = point_cloud.timestamp;
+  //     new_keyframe->point_cloud = point_cloud;
+  //     new_keyframe->global_pose = global_pose;
+  //     new_keyframe->local_pose = curr_local_pose;
+  //     new_keyframe->optimized_pose = curr_local_pose;
+  //     new_keyframe->global_pose_score = global_pose_score;
+  //     new_keyframe->local_pose_score = local_pose_score;
+  //     keyframe_buffer_.emplace_back(new_keyframe);
+  //     ++keyframe_interval_;
+  //     update_keyframe_buffer_ = true;
+  //   }
+  // }
 
-  if (update_keyframe_buffer_) {
-    UpdateKeyframeBuffer();
-  }
+  // if (keyframe_interval_ >= kOptimizeKeyframeInterval) {
+  //   GlobalOptimize();
+  //   update_keyframe_buffer_ = true;
+  //   keyframe_interval_ = 0;
+  // }
+
+  // if (update_keyframe_buffer_) {
+  //   UpdateKeyframeBuffer();
+  // }
 }
 
 void Localization::AddGridMap(
@@ -560,7 +575,7 @@ void Localization::AddGridMap(
   FastCorrelativeScanMatcherOptions2D options;
   options.linear_search_window = 8.0;
   options.angular_search_window = M_PI / 6.0;
-  options.branch_and_bound_depth = 1;
+  options.branch_and_bound_depth = 7;
 
   const auto t0 = std::chrono::steady_clock::now();
 
@@ -577,10 +592,95 @@ void Localization::AddGridMap(
 
 void Localization::AddInitialPose(const Eigen::Matrix4d& initial_pose) {
   std::unique_lock<std::mutex> lock(keyframe_buffer_mutex_);
+  if (keyframe_buffer_.empty()) {
+    LOG(ERROR) << "Not laser scan data, please try again later";
+    return;
+  }
+
+  std::vector<Eigen::Vector3f> point_cloud;
+  for (const TimedPointCloud& timed_point :
+       keyframe_buffer_.back()->point_cloud.points) {
+    point_cloud.emplace_back(timed_point.position.cast<float>());
+  }
+
+  const float min_score = 0.4;
+  float match_score = 0.f;
+  transform::Rigid2d pose_estimate;
+  fast_correlative_scan_matcher_->MatchFullSubmap(point_cloud, min_score,
+                                                  &match_score, &pose_estimate);
+  LOG(INFO) << "match_score = " << match_score;
+
+  // {
+  //   {
+  //     const int width =
+  //         probability_grid_->map_limits().cell_limits().num_x_cells;
+  //     const int height =
+  //         probability_grid_->map_limits().cell_limits().num_y_cells;
+  //     cv::Mat image(height, width, CV_8UC3);
+  //     for (int y = 0; y < height; ++y) {
+  //       for (int x = 0; x < width; ++x) {
+  //         const Eigen::Array2i index(x, y);
+  //         const float probability = probability_grid_->GetProbability(index);
+  //         const u_char val = static_cast<u_char>((1.0f - probability) * 255.0f);
+  //         image.at<cv::Vec3b>(y, x) = cv::Vec3b(val, val, val);
+  //       }
+  //     }
+
+  //     transform::Rigid3f rigid3f(
+  //         Eigen::Vector3f(pose_estimate.translation().x(),
+  //                         pose_estimate.translation().y(), 0.),
+  //         Eigen::AngleAxisf(pose_estimate.rotation().angle(),
+  //                           Eigen::Vector3f::UnitZ()));
+
+  //     std::vector<Eigen::Vector3f> rotated_point_cloud;
+  //     rotated_point_cloud.reserve(point_cloud.size());
+  //     for (const Eigen::Vector3f& point : point_cloud) {
+  //       rotated_point_cloud.emplace_back(rigid3f * point);
+  //     }
+
+  //     for (const Eigen::Vector3f point : rotated_point_cloud) {
+  //       const Eigen::Array2i index =
+  //           probability_grid_->map_limits().GetCellIndex(point.head(2));
+  //       image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 0, 255);
+  //     }
+
+  //     cv::imwrite("/home/linjs/图片/match.png", image);
+  //   }
+
+  //   // Todo:
+  //   transform::Rigid3f rigid3f(
+  //       Eigen::Vector3f(pose_estimate.translation().x(),
+  //                       pose_estimate.translation().y(), 0.),
+  //       Eigen::AngleAxisf(pose_estimate.rotation().angle(),
+  //                         Eigen::Vector3f::UnitZ()));
+
+  //   std::vector<Eigen::Vector3f> rotated_point_cloud;
+  //   rotated_point_cloud.reserve(point_cloud.size());
+  //   for (const Eigen::Vector3f& point : point_cloud) {
+  //     rotated_point_cloud.emplace_back(rigid3f * point);
+  //   }
+
+  //   float score = 0.0;
+  //   for (const Eigen::Vector3f point : rotated_point_cloud) {
+  //     const Eigen::Array2i index =
+  //         probability_grid_->map_limits().GetCellIndex(point.head(2));
+  //     score += probability_grid_->GetProbability(index);
+  //   }
+
+  //   LOG(INFO) << "---------------------score = "
+  //             << score / rotated_point_cloud.size();
+  // }
+
+  initial_pose_.block<2, 1>(0, 3) = pose_estimate.translation();
+  initial_pose_.block<3, 3>(0, 0) =
+      Eigen::AngleAxisd(pose_estimate.rotation().angle(),
+                        Eigen::Vector3d::UnitZ())
+          .toRotationMatrix();
+
+  LOG(INFO) << "initial_pose = " << initial_pose_;
+
   keyframe_buffer_.clear();
   search_tree_ = nullptr;
-  initial_pose_ = Eigen::Matrix4d::Identity();
-  LOG(INFO) << "Add initial pose";
 }
 
 void Localization::AddImuData() {}

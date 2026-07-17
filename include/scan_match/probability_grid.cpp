@@ -153,7 +153,7 @@ float ProbabilityGrid::GetProbability(const Eigen::Array2i& cell_index) const {
 void ProbabilityGrid::VisualizeGrid() {
   const int width = map_limits_.cell_limits().num_x_cells;
   const int height = map_limits_.cell_limits().num_y_cells;
-  std::cout << "width = " << width << ", height = " << height << std::endl;
+  LOG(INFO) << "width = " << width << ", height = " << height;
 
   // 创建一个灰度图：Height 行, Width 列
   cv::Mat image(height, width, CV_8UC1);

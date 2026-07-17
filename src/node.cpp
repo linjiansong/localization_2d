@@ -127,11 +127,13 @@ void LocalizationNode::HandleScanMessage(
 
     // 转换为极坐标
     const Eigen::AngleAxisd rotation(angle, Eigen::Vector3d::UnitZ());
+    const Eigen::AngleAxisd rotation_x(M_PI, Eigen::Vector3d::UnitX());
+
     const Eigen::Vector3d position =
-        rotation * (Eigen::Vector3d(range, 0.0, 0.0));
+        rotation_x * rotation * (Eigen::Vector3d(range, 0.0, 0.0));
 
     const Eigen::Vector3d transformed_position =
-        Eigen::Vector3d(position.x(), -position.y(), -position.z());
+        Eigen::Vector3d(position.x(), position.y(), position.z());
 
     TimedPointCloud timed_point;
     // timed_point.position = position;
@@ -153,11 +155,11 @@ void LocalizationNode::HandleImuMessage(
 
 void LocalizationNode::HandleInitialposeMessage(
     const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {
+  LOG(INFO) << "Receive initial pose";
   Eigen::Affine3d affine;
   tf2::fromMsg(msg->pose.pose, affine);
-  Eigen::Matrix4d rigid_pose = affine.matrix();
-
-  // Todo
+  const Eigen::Matrix4d rigid_pose = affine.matrix();
+  locator_->AddInitialPose(rigid_pose);
 }
 
 void LocalizationNode::HandleGridMapMessage(
@@ -176,16 +178,6 @@ void LocalizationNode::HandleGridMapMessage(
   const int width = msg->info.width;
   const int height = msg->info.height;
   LOG(INFO) << "width = " << width << ", height = " << height;
-
-  // ROS origin 是左下角坐标
-  const double origin_x = msg->info.origin.position.x;
-  const double origin_y = msg->info.origin.position.y;
-
-  // 计算右上角坐标 (max)
-  // 这是 Cartographer MapLimits 所需要的坐标基准
-  const Eigen::Vector2d grid_origin(origin_x, origin_y + height * resolution);
-  const MapLimits map_limits(resolution, grid_origin,
-                             CellLimits(width, height));
 
   std::vector<int8_t> occupied_cells;
   occupied_cells.reserve(width * height);
@@ -221,20 +213,16 @@ void LocalizationNode::HandleGridMapMessage(
   LOG(INFO) << "cost 1.0 = " << (1.0 - kMinCorrespondenceCost) / scale + 1.0f;
   LOG(INFO) << "cost 0.0 = " << (0.0 - kMinCorrespondenceCost) / scale + 1.0f;
 
+  // 计算左上角坐标 (max)
+  // 这是 Cartographer MapLimits 所需要的坐标基准
+  const Eigen::Vector2d grid_origin(
+      msg->info.origin.position.x,
+      msg->info.origin.position.y + height * resolution);
+  const MapLimits map_limits(resolution, grid_origin,
+                             CellLimits(width, height));
+
   auto probability_grid = std::make_shared<ProbabilityGrid>(
       map_limits, correspondence_cost_cells, nullptr);
-
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      const double distance = distance_field[y * width + x];
-      const float probability = std::exp(-(distance * distance) / 25.0);
-      // Eigen::Array2i index(height - y - 1, width - x - 1);
-      const Eigen::Array2i index(height - y - 1, width - x - 1);
-
-      // LOG(INFO) << "probability = " << probability << ", get = " <<
-      // probability_grid->GetProbability(index);
-    }
-  }
 
   {
     cv::Mat image(height, width, CV_8UC1);
@@ -245,26 +233,9 @@ void LocalizationNode::HandleGridMapMessage(
 
         const double distance = distance_field[flat_index];
         const float probability = std::exp(-(distance * distance) / 25.0);
-        uchar pixel_value = static_cast<uchar>(
+        const uchar pixel_value = static_cast<uchar>(
             std::clamp((1.0f - probability) * 255.0f, 0.0f, 255.0f));
 
-        // image.at<uchar>(height - 1 - y, x) = pixel_value;
-
-        // // 2. 从预计算表中获取代价
-        // // 假设 correspondence_cost_cells 中存储的是原始 uint16_t 值
-        // uint16_t val = correspondence_cost_cells[flat_index];
-        // float cost = ValueToCorrespondenceCost(val);
-
-        // // 3. 概率映射
-        // // cost: 0.1(空闲) -> 1.0(障碍物)
-        // // 灰度值: 0.0 -> 255(白), 1.0 -> 0(黑)
-        // // 我们想要障碍物(cost高)显示为黑色，空闲(cost低)显示为白色
-        // float prob = 1.0f - cost;
-        // uchar pixel_value =
-        //     static_cast<uchar>(std::clamp(prob * 255.0f, 0.0f, 255.0f));
-
-        // 4. 坐标翻转：ROS 原点在左下角，OpenCV 在左上角
-        // 因此我们需要将 y 轴翻转，即 height - 1 - y
         image.at<uchar>(height - 1 - y, x) = pixel_value;
       }
     }
@@ -280,6 +251,7 @@ void LocalizationNode::HandleGridMapMessage(
 }
 
 void LocalizationNode::PublishPointCloud() {
+  return;
   const auto keyframe_buffer = locator_->keyframe_buffer();
   // if (!keyframe_buffer.empty()) {
   //   LOG(INFO) << "pose = " << keyframe_buffer.front()->optimized_pose;
@@ -311,22 +283,45 @@ void LocalizationNode::PublishPointCloud() {
   point_cloud_publisher_->publish(output_msg);
 }
 
+// void LocalizationNode::PublishTransform() {
+//   const auto keyframe_buffer = locator_->keyframe_buffer();
+//   if (keyframe_buffer.empty()) {
+//     return;
+//   }
+
+//   const Eigen::Affine3d affine(keyframe_buffer.back()->optimized_pose);
+
+//   // LOG(INFO) << "optimized_pose " <<
+//   keyframe_buffer.back()->optimized_pose;
+
+//   geometry_msgs::msg::TransformStamped tf_info;
+//   tf_info.header.stamp = rclcpp::Time(
+//       static_cast<int64_t>(keyframe_buffer.back()->timestamp * 1e9));
+//   tf_info.header.frame_id = "map";  // parent frame
+//   tf_info.child_frame_id = "laser";
+//   tf_info.transform = tf2::eigenToTransform(affine).transform;
+//   tf_broadcaster_->sendTransform(tf_info);
+// }
+
 void LocalizationNode::PublishTransform() {
   const auto keyframe_buffer = locator_->keyframe_buffer();
   if (keyframe_buffer.empty()) {
     return;
   }
 
-  const Eigen::Affine3d affine(keyframe_buffer.back()->optimized_pose);
+  Eigen::Matrix4d daidaiche = Eigen::Matrix4d::Identity();
+  daidaiche.block<3, 3>(0, 0) =
+      Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()).toRotationMatrix();
 
-  // LOG(INFO) << "optimized_pose " << keyframe_buffer.back()->optimized_pose;
+  const Eigen::Affine3d affine(keyframe_buffer.back()->optimized_pose * daidaiche);
 
   geometry_msgs::msg::TransformStamped tf_info;
-  tf_info.header.stamp = rclcpp::Time(
-      static_cast<int64_t>(keyframe_buffer.back()->timestamp * 1e9));
-  tf_info.header.frame_id = "map";  // parent frame
+  tf_info.header.stamp = this->now();
+
+  tf_info.header.frame_id = "map";
   tf_info.child_frame_id = "laser";
   tf_info.transform = tf2::eigenToTransform(affine).transform;
+
   tf_broadcaster_->sendTransform(tf_info);
 }
 

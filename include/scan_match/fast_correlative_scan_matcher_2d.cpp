@@ -49,73 +49,6 @@ std::vector<Eigen::Vector3f> TransformsPointCloud(
 }
 }  // namespace
 
-SearchParameters::SearchParameters(
-    const double linear_search_window, const double angular_search_window,
-    const std::vector<Eigen::Vector3f>& point_cloud, const double resolution)
-    : resolution(resolution) {
-  // We set this value to something on the order of resolution to make sure that
-  // the std::acos() below is defined.
-  // float max_scan_range = 3.f * resolution;
-  // for (const Eigen::Vector3f& point : point_cloud) {
-  //   const float range = point.position.head<2>().norm();
-  //   max_scan_range = std::max(range, max_scan_range);
-  // }
-
-  // angular_perturbation_step_size =
-  //     kSafetyMargin * std::acos(1. - common::Pow2(resolution) /
-  //                                       (2. * common::Pow2(max_scan_range)));
-  angular_perturbation_step_size = 0.5 * M_PI / 180.;
-  num_angular_perturbations =
-      std::ceil(angular_search_window / angular_perturbation_step_size);
-
-  num_scans = 2 * num_angular_perturbations + 1;
-
-  const int num_linear_perturbations =
-      std::ceil(linear_search_window / resolution);
-  linear_bounds.reserve(num_scans);
-  for (int i = 0; i != num_scans; ++i) {
-    linear_bounds.push_back(
-        LinearBounds{-num_linear_perturbations, num_linear_perturbations,
-                     -num_linear_perturbations, num_linear_perturbations});
-  }
-}
-
-SearchParameters::SearchParameters(const int num_linear_perturbations,
-                                   const int num_angular_perturbations,
-                                   const double angular_perturbation_step_size,
-                                   const double resolution)
-    : num_angular_perturbations(num_angular_perturbations),
-      angular_perturbation_step_size(angular_perturbation_step_size),
-      resolution(resolution),
-      num_scans(2 * num_angular_perturbations + 1) {
-  linear_bounds.reserve(num_scans);
-  for (int i = 0; i != num_scans; ++i) {
-    linear_bounds.push_back(
-        LinearBounds{-num_linear_perturbations, num_linear_perturbations,
-                     -num_linear_perturbations, num_linear_perturbations});
-  }
-}
-
-void SearchParameters::ShrinkToFit(const std::vector<DiscreteScan2D>& scans,
-                                   const CellLimits& cell_limits) {
-  CHECK_EQ(scans.size(), num_scans);
-  CHECK_EQ(linear_bounds.size(), num_scans);
-  for (int i = 0; i != num_scans; ++i) {
-    Eigen::Array2i min_bound = Eigen::Array2i::Zero();
-    Eigen::Array2i max_bound = Eigen::Array2i::Zero();
-    for (const Eigen::Array2i& xy_index : scans[i]) {
-      min_bound = min_bound.min(-xy_index);
-      max_bound = max_bound.max(Eigen::Array2i(cell_limits.num_x_cells - 1,
-                                               cell_limits.num_y_cells - 1) -
-                                xy_index);
-    }
-    linear_bounds[i].min_x = std::max(linear_bounds[i].min_x, min_bound.x());
-    linear_bounds[i].max_x = std::min(linear_bounds[i].max_x, max_bound.x());
-    linear_bounds[i].min_y = std::max(linear_bounds[i].min_y, min_bound.y());
-    linear_bounds[i].max_y = std::min(linear_bounds[i].max_y, max_bound.y());
-  }
-}
-
 FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
     const ProbabilityGrid& probability_grid,
     const FastCorrelativeScanMatcherOptions2D& options)
@@ -125,13 +58,19 @@ FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
           probability_grid, options)) {
   LOG(INFO) << "FastCorrelativeScanMatcher2D Constrction";
 
-  LOG(INFO) << "index = (338, 426) = " << probability_grid.GetCorrespondenceCost(Eigen::Array2i(338, 426));
-  LOG(INFO) << "index = (339, 426) = " << probability_grid.GetCorrespondenceCost(Eigen::Array2i(339, 426));
-  LOG(INFO) << "index = (340, 426) = " << probability_grid.GetCorrespondenceCost(Eigen::Array2i(340, 426));
+  // LOG(INFO) << "index = (338, 426) = " <<
+  // probability_grid.GetCorrespondenceCost(Eigen::Array2i(338, 426)); LOG(INFO)
+  // << "index = (339, 426) = " <<
+  // probability_grid.GetCorrespondenceCost(Eigen::Array2i(339, 426)); LOG(INFO)
+  // << "index = (340, 426) = " <<
+  // probability_grid.GetCorrespondenceCost(Eigen::Array2i(340, 426));
 
-  LOG(INFO) << "index = (338, 426) = " << probability_grid.GetProbability(Eigen::Array2i(338, 426));
-  LOG(INFO) << "index = (339, 426) = " << probability_grid.GetProbability(Eigen::Array2i(339, 426));
-  LOG(INFO) << "index = (340, 426) = " << probability_grid.GetProbability(Eigen::Array2i(340, 426));
+  // LOG(INFO) << "index = (338, 426) = " <<
+  // probability_grid.GetProbability(Eigen::Array2i(338, 426)); LOG(INFO) <<
+  // "index = (339, 426) = " <<
+  // probability_grid.GetProbability(Eigen::Array2i(339, 426)); LOG(INFO) <<
+  // "index = (340, 426) = " <<
+  // probability_grid.GetProbability(Eigen::Array2i(340, 426));
 
   for (int depth = 0; depth < options.branch_and_bound_depth; ++depth) {
     const PrecomputationGrid2D& precomputation_grid =
@@ -146,7 +85,7 @@ FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
       for (int x = 0; x < wide_limits.num_x_cells; ++x) {
         const int flat_index = y * wide_limits.num_x_cells + x;
         const uint8_t value = cells[flat_index];
-        image.at<uchar>(y, x) = value;
+        image.at<uchar>(y, x) = 255 - value;
       }
     }
 
@@ -250,14 +189,13 @@ bool FastCorrelativeScanMatcher2D::MatchFullSubmap(
       1e6 * limits_.resolution(),  // Linear search window, 1e6 cells/direction.
       M_PI,  // Angular search window, 180 degrees in both directions.
       point_cloud, limits_.resolution());
-  // const transform::Rigid2d center = transform::Rigid2d::Translation(
-  //     limits_.max() - 0.5 * limits_.resolution() *
-  //                         Eigen::Vector2d(limits_.cell_limits().num_y_cells,
-  //                                         limits_.cell_limits().num_x_cells));
-  // Todo:
-  const transform::Rigid2d center;
-  return MatchWithSearchParameters(search_parameters, center, point_cloud,
-                                   min_score, score, pose_estimate);
+
+  Eigen::Vector2d center = limits_.origin();
+  center.x() += 0.5 * limits_.resolution() * limits_.cell_limits().num_x_cells;
+  center.y() -= 0.5 * limits_.resolution() * limits_.cell_limits().num_y_cells;
+  return MatchWithSearchParameters(
+      search_parameters, transform::Rigid2d::Translation(center), point_cloud,
+      min_score, score, pose_estimate);
 }
 
 bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
@@ -273,6 +211,29 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
       point_cloud,
       transform::Rigid3f::Rotation(Eigen::AngleAxisf(
           initial_rotation.cast<float>().angle(), Eigen::Vector3f::UnitZ())));
+
+  {
+    const auto precomputation_grid = precomputation_grid_stack_->Get(0);
+    const CellLimits& wide_limits = precomputation_grid.wide_limits();
+    const std::vector<uint8_t>& cells = precomputation_grid.cells();
+
+    cv::Mat image(wide_limits.num_y_cells, wide_limits.num_x_cells, CV_8UC3);
+    for (int y = 0; y < wide_limits.num_y_cells; ++y) {
+      for (int x = 0; x < wide_limits.num_x_cells; ++x) {
+        const int flat_index = y * wide_limits.num_x_cells + x;
+        const uint8_t value = 255 - cells[flat_index];
+        image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
+      }
+    }
+
+    for (const Eigen::Vector3f& point : rotated_point_cloud) {
+      const Eigen::Array2i index = limits_.GetCellIndex(point.head(2));
+      image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 255, 0);
+    }
+
+    cv::imwrite("/home/linjs/图片/rotated_point_cloud.png", image);
+  }
+
   const std::vector<std::vector<Eigen::Vector3f>> rotated_scans =
       GenerateRotatedScans(rotated_point_cloud, search_parameters);
   const std::vector<DiscreteScan2D> discrete_scans = DiscretizeScans(
@@ -288,6 +249,7 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
       precomputation_grid_stack_->max_depth(), min_score);
 
   *score = best_candidate.score;
+
   if (best_candidate.score > min_score) {
     // *score = best_candidate.score;
     // LOG(INFO) << "best_candidate.score = " << best_candidate.score;
@@ -295,8 +257,35 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
         {initial_pose_estimate.translation().x() + best_candidate.x,
          initial_pose_estimate.translation().y() + best_candidate.y},
         initial_rotation * Eigen::Rotation2Dd(best_candidate.orientation));
+
+    {
+      // Todo:
+      transform::Rigid3f rigid3f(
+          Eigen::Vector3f(pose_estimate->translation().x(),
+                          pose_estimate->translation().y(), 0.),
+          Eigen::AngleAxisf(pose_estimate->rotation().angle(),
+                            Eigen::Vector3f::UnitZ()));
+
+      const std::vector<Eigen::Vector3f> rotated_point_cloud =
+          TransformsPointCloud(point_cloud, rigid3f);
+
+      const PrecomputationGrid2D& precomputation_grid =
+          precomputation_grid_stack_->Get(0);
+
+      float score = 0.0;
+      for (const Eigen::Vector3f point : rotated_point_cloud) {
+        const Eigen::Array2i index = limits_.GetCellIndex(point.head(2));
+        score += precomputation_grid.GetValue(index);
+      }
+
+      LOG(INFO) << "score = "
+                << precomputation_grid.ToScore(score /
+                                               rotated_point_cloud.size());
+    }
+
     return true;
   }
+
   return false;
 }
 
@@ -306,9 +295,56 @@ FastCorrelativeScanMatcher2D::ComputeLowestResolutionCandidates(
     const SearchParameters& search_parameters) const {
   std::vector<Candidate2D> lowest_resolution_candidates =
       GenerateLowestResolutionCandidates(search_parameters);
+
+  LOG(INFO) << "discrete_scans = " << discrete_scans.size();
   ScoreCandidates(
       precomputation_grid_stack_->Get(precomputation_grid_stack_->max_depth()),
       discrete_scans, search_parameters, &lowest_resolution_candidates);
+
+  {
+    const auto precomputation_grid = precomputation_grid_stack_->Get(
+        precomputation_grid_stack_->max_depth());
+    const CellLimits& wide_limits = precomputation_grid.wide_limits();
+    const std::vector<uint8_t>& cells = precomputation_grid.cells();
+
+    cv::Mat image(wide_limits.num_y_cells, wide_limits.num_x_cells, CV_8UC3);
+    for (int y = 0; y < wide_limits.num_y_cells; ++y) {
+      for (int x = 0; x < wide_limits.num_x_cells; ++x) {
+        const int flat_index = y * wide_limits.num_x_cells + x;
+        const uint8_t value = 255 - cells[flat_index];
+        image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
+      }
+    }
+
+    Eigen::Vector2d center = limits_.origin();
+    center.x() +=
+        0.5 * limits_.resolution() * limits_.cell_limits().num_x_cells;
+    center.y() -=
+        0.5 * limits_.resolution() * limits_.cell_limits().num_y_cells;
+    LOG(INFO) << "center = " << center.x() << ", " << center.y();
+
+    const Eigen::Array2i origin_index =
+        limits_.GetCellIndex(center.cast<float>());
+    LOG(INFO) << "origin_index = " << origin_index.x() << ", "
+              << origin_index.y();
+    for (const Candidate2D& candidate : lowest_resolution_candidates) {
+      Eigen::Array2i index = origin_index;
+      index.x() += candidate.x_index_offset;
+      index.y() += candidate.y_index_offset;
+      // LOG(INFO) << "index = " << index.x() << ", " << index.y();
+      if (limits_.Contains(index)) {
+        image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 255, 0);
+      } else {
+        // LOG(INFO) << "index = " << index.x() << ", " << index.y();
+        continue;
+      }
+    }
+
+    cv::imwrite("/home/linjs/图片/lowest_resolution_candidates.png", image);
+  }
+
+  LOG(INFO) << "lowest_resolution_candidates = "
+            << lowest_resolution_candidates.size();
   return lowest_resolution_candidates;
 }
 
@@ -330,10 +366,15 @@ FastCorrelativeScanMatcher2D::GenerateLowestResolutionCandidates(
     num_candidates += num_lowest_resolution_linear_x_candidates *
                       num_lowest_resolution_linear_y_candidates;
   }
+
+  LOG(INFO) << "num_candidates = " << num_candidates;
   std::vector<Candidate2D> candidates;
   candidates.reserve(num_candidates);
   for (int scan_index = 0; scan_index != search_parameters.num_scans;
        ++scan_index) {
+    // LOG(INFO) << "linear_bounds = "
+    //           << search_parameters.linear_bounds[scan_index].min_x << ", "
+    //           << search_parameters.linear_bounds[scan_index].max_x;
     for (int x_index_offset = search_parameters.linear_bounds[scan_index].min_x;
          x_index_offset <= search_parameters.linear_bounds[scan_index].max_x;
          x_index_offset += linear_step_size) {
@@ -364,7 +405,7 @@ void FastCorrelativeScanMatcher2D::ScoreCandidates(
           xy_index.y() + candidate.y_index_offset);
       sum += precomputation_grid.GetValue(proposed_xy_index);
     }
-    
+
     candidate.score = precomputation_grid.ToScore(
         sum / static_cast<float>(discrete_scans[candidate.scan_index].size()));
   }

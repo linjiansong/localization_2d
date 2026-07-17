@@ -24,6 +24,8 @@
 
 #include "include/scan_match/precomputation_grid_2d.h"
 
+#include <set>
+
 namespace solex_robot::navigation::localization_2d {
 
 PrecomputationGrid2D::PrecomputationGrid2D(
@@ -33,16 +35,15 @@ PrecomputationGrid2D::PrecomputationGrid2D(
       wide_limits_(limits.num_x_cells + width - 1,
                    limits.num_y_cells + width - 1),
       min_score_(1.f - kMaxCorrespondenceCost),
-      max_score_(1.f - kMaxCorrespondenceCost),
+      max_score_(1.f - kMinCorrespondenceCost),
       cells_(wide_limits_.num_x_cells * wide_limits_.num_y_cells) {
   CHECK_GE(width, 1);
   CHECK_GE(limits.num_x_cells, 1);
   CHECK_GE(limits.num_y_cells, 1);
-  LOG(INFO) << "offset_ = " << offset_.x() << ", " << offset_.y();
   const int stride = wide_limits_.num_x_cells;
+
   // First we compute the maximum probability for each (x0, y) achieved in the
   // span defined by x0 <= x < x0 + width.
-
   std::vector<float>& intermediate = *reusable_intermediate_grid;
   intermediate.resize(wide_limits_.num_x_cells * limits.num_y_cells);
   for (int y = 0; y != limits.num_y_cells; ++y) {
@@ -50,9 +51,6 @@ PrecomputationGrid2D::PrecomputationGrid2D(
     current_values.AddValue(
         1.f -
         std::abs(probability_grid.GetCorrespondenceCost(Eigen::Array2i(0, y))));
-    // LOG(INFO) << "max value = "
-    //           << 1.f - std::abs(probability_grid.GetCorrespondenceCost(
-    //                        Eigen::Array2i(0, y)));
     for (int x = -width + 1; x != 0; ++x) {
       intermediate[x + width - 1 + y * stride] = current_values.GetMaximum();
       if (x + width < limits.num_x_cells) {
@@ -79,6 +77,7 @@ PrecomputationGrid2D::PrecomputationGrid2D(
     }
     current_values.CheckIsEmpty();
   }
+
   // For each (x, y), we compute the maximum probability in the width x width
   // region starting at each (x, y) and precompute the resulting bound on the
   // score.
@@ -106,10 +105,6 @@ PrecomputationGrid2D::PrecomputationGrid2D(
     }
     current_values.CheckIsEmpty();
   }
-
-  // for (const int value : cells_) {
-  //   LOG(INFO) << "value = " << value;
-  // }
 }
 
 int PrecomputationGrid2D::GetValue(const Eigen::Array2i& xy_index) const {
