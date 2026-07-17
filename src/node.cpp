@@ -164,9 +164,10 @@ void LocalizationNode::HandleInitialposeMessage(
 
 void LocalizationNode::HandleGridMapMessage(
     const nav_msgs::msg::OccupancyGrid::SharedPtr msg) {
-  LOG(INFO) << "-----------------------------------------------------";
+  LOG(INFO) << "------------------------------------------------------------------";
   LOG(INFO) << "Received a new grid map. Resolution: " << msg->info.resolution
             << ", Size: " << msg->info.width << "x" << msg->info.height;
+  LOG(INFO) << "------------------------------------------------------------------";
 
   // 1. 检查数据合法性
   if (msg->data.empty()) {
@@ -199,7 +200,6 @@ void LocalizationNode::HandleGridMapMessage(
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
       const float distance = distance_field[y * width + x];
-      // LOG(INFO) << "distance = " << distance;
       const float probability = std::exp(-(distance * distance) / 25.0);
       const float cost = std::clamp(1.f - probability, kMinCorrespondenceCost,
                                     kMaxCorrespondenceCost);
@@ -208,10 +208,6 @@ void LocalizationNode::HandleGridMapMessage(
       correspondence_cost_cells[flat_index] = value;
     }
   }
-
-  LOG(INFO) << "cost 0.5 = " << (0.5 - kMinCorrespondenceCost) / scale + 1.0f;
-  LOG(INFO) << "cost 1.0 = " << (1.0 - kMinCorrespondenceCost) / scale + 1.0f;
-  LOG(INFO) << "cost 0.0 = " << (0.0 - kMinCorrespondenceCost) / scale + 1.0f;
 
   // 计算左上角坐标 (max)
   // 这是 Cartographer MapLimits 所需要的坐标基准
@@ -228,14 +224,11 @@ void LocalizationNode::HandleGridMapMessage(
     cv::Mat image(height, width, CV_8UC1);
     for (int y = 0; y < height; ++y) {
       for (int x = 0; x < width; ++x) {
-        // 1. 获取对应的索引 (ROS 数据存储顺序：y * width + x)
         const int flat_index = y * width + x;
-
         const double distance = distance_field[flat_index];
         const float probability = std::exp(-(distance * distance) / 25.0);
         const uchar pixel_value = static_cast<uchar>(
             std::clamp((1.0f - probability) * 255.0f, 0.0f, 255.0f));
-
         image.at<uchar>(height - 1 - y, x) = pixel_value;
       }
     }

@@ -273,7 +273,8 @@ std::pair<Eigen::Matrix4d, double> Localization::MatchGlobalMap(
   ceres_scan_matcher_->Match(initial_pose, points, probability_grid_,
                              &global_pose, &match_score);
 
-  LOG(INFO) << "match_score = " << match_score;
+  // LOG(INFO) << "match_score = " << match_score;
+  // LOG(INFO) << "global_pose = " << global_pose;
 
   // return std::make_pair(global_pose, match_score);
   return std::make_pair(global_pose, match_score);
@@ -438,9 +439,7 @@ void Localization::AddPointCloud(const PointCloud& point_cloud) {
   std::vector<Eigen::Vector3d> transformed_points;
   transformed_points.reserve(point_cloud.points.size());
   for (const TimedPointCloud& timed_point : point_cloud.points) {
-    const Eigen::Vector3d transformed_point =
-        TransformPoint(initial_pose, timed_point.position);
-    transformed_points.emplace_back(transformed_point);
+    transformed_points.emplace_back(timed_point.position);
   }
 
   const Eigen::Matrix4d global_pose = initial_pose_;
@@ -457,6 +456,15 @@ void Localization::AddPointCloud(const PointCloud& point_cloud) {
   keyframe_buffer_.emplace_back(new_keyframe);
   ++keyframe_interval_;
   update_keyframe_buffer_ = true;
+
+  const auto t0 = std::chrono::steady_clock::now();
+  const auto [global_pose1, global_pose_score1] =
+      MatchGlobalMap(transformed_points, initial_pose);
+  const auto t1 = std::chrono::steady_clock::now();
+  LOG(INFO)
+      << "MatchGlobalMap takes "
+      << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()
+      << "ms";
 
   // if (keyframe_buffer_.empty()) {
   //   // match to global map
@@ -610,6 +618,17 @@ void Localization::AddInitialPose(const Eigen::Matrix4d& initial_pose) {
                                                   &match_score, &pose_estimate);
   LOG(INFO) << "match_score = " << match_score;
 
+  initial_pose_.block<2, 1>(0, 3) = pose_estimate.translation();
+  initial_pose_.block<3, 3>(0, 0) =
+      Eigen::AngleAxisd(pose_estimate.rotation().angle(),
+                        Eigen::Vector3d::UnitZ())
+          .toRotationMatrix();
+
+  LOG(INFO) << "initial_pose = " << initial_pose_;
+
+  keyframe_buffer_.clear();
+  search_tree_ = nullptr;
+
   // {
   //   {
   //     const int width =
@@ -621,8 +640,8 @@ void Localization::AddInitialPose(const Eigen::Matrix4d& initial_pose) {
   //       for (int x = 0; x < width; ++x) {
   //         const Eigen::Array2i index(x, y);
   //         const float probability = probability_grid_->GetProbability(index);
-  //         const u_char val = static_cast<u_char>((1.0f - probability) * 255.0f);
-  //         image.at<cv::Vec3b>(y, x) = cv::Vec3b(val, val, val);
+  //         const u_char val = static_cast<u_char>((1.0f - probability) *
+  //         255.0f); image.at<cv::Vec3b>(y, x) = cv::Vec3b(val, val, val);
   //       }
   //     }
 
@@ -670,17 +689,6 @@ void Localization::AddInitialPose(const Eigen::Matrix4d& initial_pose) {
   //   LOG(INFO) << "---------------------score = "
   //             << score / rotated_point_cloud.size();
   // }
-
-  initial_pose_.block<2, 1>(0, 3) = pose_estimate.translation();
-  initial_pose_.block<3, 3>(0, 0) =
-      Eigen::AngleAxisd(pose_estimate.rotation().angle(),
-                        Eigen::Vector3d::UnitZ())
-          .toRotationMatrix();
-
-  LOG(INFO) << "initial_pose = " << initial_pose_;
-
-  keyframe_buffer_.clear();
-  search_tree_ = nullptr;
 }
 
 void Localization::AddImuData() {}
