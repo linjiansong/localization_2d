@@ -29,6 +29,15 @@
 
 namespace solex_robot::navigation::localization_2d {
 
+enum class LocalizationStatus {
+  kUnknown = 0,
+  kInitialization = 1,
+  kFailed = 2,
+  kSuccess = 3,
+  kRelocalization = 4,
+  kGlobalLocalization = 5
+};
+
 struct TimedPointCloud {
   Eigen::Vector3d position;
   float time = 0.0;

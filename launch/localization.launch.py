@@ -14,7 +14,7 @@ def generate_launch_description():
             executable='map_server',
             name='map_server',
             output='screen',
-            parameters=[{'yaml_filename': map_file}]
+            parameters=[{'yaml_filename': map_file, 'use_sim_time': True}]
         ),
 
         # 2. 启动 lifecycle_manager
@@ -23,7 +23,7 @@ def generate_launch_description():
             executable='lifecycle_manager',
             name='lifecycle_manager_map',
             output='screen',
-            parameters=[{'autostart': True, 'node_names': ['map_server']}]
+            parameters=[{'autostart': True, 'node_names': ['map_server'], 'use_sim_time': True}]
         ),
 
         # 3. 启动 RViz2

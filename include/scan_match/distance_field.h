@@ -30,7 +30,7 @@
 
 namespace solex_robot::navigation::localization_2d {
 namespace {
-constexpr float kMaxOccupiedDistance = 10.0;
+constexpr float kMaxOccupiedDistance = 5.0;
 }
 
 struct CellIndex {

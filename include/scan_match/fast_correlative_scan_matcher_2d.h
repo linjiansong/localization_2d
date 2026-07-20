@@ -37,112 +37,6 @@
 
 namespace solex_robot::navigation::localization_2d {
 
-// Describes the search space.
-struct SearchParameters {
-  // Linear search window in pixel offsets; bounds are inclusive.
-  struct LinearBounds {
-    int min_x;
-    int max_x;
-    int min_y;
-    int max_y;
-  };
-
-  SearchParameters(const double linear_search_window,
-                   const double angular_search_window,
-                   const std::vector<Eigen::Vector3f>& point_cloud,
-                   const double resolution)
-      : resolution(resolution) {
-    // We set this value to something on the order of resolution to make sure
-    // that the std::acos() below is defined. float max_scan_range = 3.f *
-    // resolution; for (const Eigen::Vector3f& point : point_cloud) {
-    //   const float range = point.position.head<2>().norm();
-    //   max_scan_range = std::max(range, max_scan_range);
-    // }
-
-    // angular_perturbation_step_size =
-    //     kSafetyMargin * std::acos(1. - common::Pow2(resolution) /
-    //                                       (2. *
-    //                                       common::Pow2(max_scan_range)));
-    angular_perturbation_step_size = 0.5 * M_PI / 180.;
-    num_angular_perturbations =
-        std::ceil(angular_search_window / angular_perturbation_step_size);
-
-    num_scans = 2 * num_angular_perturbations + 1;
-
-    const int num_linear_perturbations =
-        std::ceil(linear_search_window / resolution);
-    linear_bounds.reserve(num_scans);
-    for (int i = 0; i != num_scans; ++i) {
-      linear_bounds.push_back(
-          LinearBounds{-num_linear_perturbations, num_linear_perturbations,
-                       -num_linear_perturbations, num_linear_perturbations});
-    }
-  }
-
-  // Tightens the search window as much as possible.
-  // Make sure at least one scan point fall within the map
-  void ShrinkToFit(const std::vector<DiscreteScan2D>& scans,
-                   const CellLimits& cell_limits) {
-    CHECK_EQ(scans.size(), num_scans);
-    CHECK_EQ(linear_bounds.size(), num_scans);
-    for (int i = 0; i != num_scans; ++i) {
-      Eigen::Array2i min_bound = Eigen::Array2i::Zero();
-      Eigen::Array2i max_bound = Eigen::Array2i::Zero();
-      for (const Eigen::Array2i& xy_index : scans[i]) {
-        // xy_index + offset >= 0 --> offset > -xy_index
-        min_bound = min_bound.min(-xy_index);
-        // xy_index + offset <= cell_limits --> offset <= cell_limits - xy_index
-        max_bound = max_bound.max(Eigen::Array2i(cell_limits.num_x_cells - 1,
-                                                 cell_limits.num_y_cells - 1) -
-                                  xy_index);
-      }
-      linear_bounds[i].min_x = std::max(linear_bounds[i].min_x, min_bound.x());
-      linear_bounds[i].max_x = std::min(linear_bounds[i].max_x, max_bound.x());
-      linear_bounds[i].min_y = std::max(linear_bounds[i].min_y, min_bound.y());
-      linear_bounds[i].max_y = std::min(linear_bounds[i].max_y, max_bound.y());
-    }
-  }
-
-  int num_angular_perturbations;
-  double angular_perturbation_step_size;
-  double resolution;
-  int num_scans;
-  std::vector<LinearBounds> linear_bounds;  // Per rotated scans.
-};
-
-struct Candidate2D {
-  Candidate2D(const int init_scan_index, const int init_x_index_offset,
-              const int init_y_index_offset,
-              const SearchParameters& search_parameters)
-      : scan_index(init_scan_index),
-        x_index_offset(init_x_index_offset),
-        y_index_offset(init_y_index_offset),
-        // x(-y_index_offset * search_parameters.resolution),
-        // y(-x_index_offset * search_parameters.resolution),
-        x(x_index_offset * search_parameters.resolution),
-        y(-y_index_offset * search_parameters.resolution),
-        orientation((scan_index - search_parameters.num_angular_perturbations) *
-                    search_parameters.angular_perturbation_step_size) {}
-
-  // Index into the rotated scans vector.
-  int scan_index = 0;
-
-  // Linear offset from the initial pose.
-  int x_index_offset = 0;
-  int y_index_offset = 0;
-
-  // Pose of this Candidate2D relative to the initial pose.
-  double x = 0.;
-  double y = 0.;
-  double orientation = 0.;
-
-  // Score, higher is better.
-  float score = 0.f;
-
-  bool operator<(const Candidate2D& other) const { return score < other.score; }
-  bool operator>(const Candidate2D& other) const { return score > other.score; }
-};
-
 class PrecomputationGridStack2D {
  public:
   PrecomputationGridStack2D(
@@ -201,12 +95,6 @@ class FastCorrelativeScanMatcher2D {
   std::vector<std::vector<Eigen::Vector3f>> GenerateRotatedScans(
       const std::vector<Eigen::Vector3f>& point_cloud,
       const SearchParameters& search_parameters) const;
-
-  bool Match(const transform::Rigid2d& initial_pose_estimate,
-             const std::vector<Eigen::Vector3f>& point_cloud,
-             const float diff_distance, const float diff_angle,
-             const float min_score, float* score,
-             transform::Rigid2d* pose_estimate) const;
 
   bool MatchLocalSubmap(const transform::Rigid2d& initial_pose_estimate,
                         const std::vector<Eigen::Vector3f>& point_cloud,

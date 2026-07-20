@@ -37,7 +37,7 @@
 
 namespace solex_robot::navigation::localization_2d {
 namespace {
-std::vector<Eigen::Vector3f> TransformsPointCloud(
+std::vector<Eigen::Vector3f> TransformPointCloud(
     const std::vector<Eigen::Vector3f>& point_cloud,
     const transform::Rigid3f& transform) {
   std::vector<Eigen::Vector3f> result;
@@ -127,38 +127,11 @@ FastCorrelativeScanMatcher2D::GenerateRotatedScans(
   for (int scan_index = 0; scan_index < search_parameters.num_scans;
        ++scan_index,
            delta_theta += search_parameters.angular_perturbation_step_size) {
-    rotated_scans.push_back(TransformsPointCloud(
+    rotated_scans.push_back(TransformPointCloud(
         point_cloud, transform::Rigid3f::Rotation(Eigen::AngleAxisf(
                          delta_theta, Eigen::Vector3f::UnitZ()))));
   }
   return rotated_scans;
-}
-
-// match_type = tracking
-bool FastCorrelativeScanMatcher2D::Match(
-    const transform::Rigid2d& initial_pose_estimate,
-    const std::vector<Eigen::Vector3f>& point_cloud, const float diff_distance,
-    const float diff_angle, const float min_score, float* score,
-    transform::Rigid2d* pose_estimate) const {
-  double linear_search_window =
-      diff_distance * 0.05 + options_.linear_search_window;
-  double angular_search_window =
-      diff_angle * 0.05 + options_.angular_search_window;
-
-  linear_search_window = std::min(linear_search_window, 4.);
-  angular_search_window = std::min(angular_search_window, 1.5708);
-
-  if (diff_distance > 0 || diff_angle > 0) {
-    LOG(INFO) << "linear_search_window = " << linear_search_window
-              << ", angular_search_window = " << angular_search_window;
-  }
-
-  const SearchParameters search_parameters(linear_search_window,
-                                           angular_search_window, point_cloud,
-                                           limits_.resolution());
-  return MatchWithSearchParameters(search_parameters, initial_pose_estimate,
-                                   point_cloud, min_score, score,
-                                   pose_estimate);
 }
 
 // match_type = Initial
@@ -207,32 +180,10 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
   CHECK(pose_estimate != nullptr);
 
   const Eigen::Rotation2Dd initial_rotation = initial_pose_estimate.rotation();
-  const std::vector<Eigen::Vector3f> rotated_point_cloud = TransformsPointCloud(
+  const std::vector<Eigen::Vector3f> rotated_point_cloud = TransformPointCloud(
       point_cloud,
       transform::Rigid3f::Rotation(Eigen::AngleAxisf(
           initial_rotation.cast<float>().angle(), Eigen::Vector3f::UnitZ())));
-
-  {
-    const auto precomputation_grid = precomputation_grid_stack_->Get(0);
-    const CellLimits& wide_limits = precomputation_grid.wide_limits();
-    const std::vector<uint8_t>& cells = precomputation_grid.cells();
-
-    cv::Mat image(wide_limits.num_y_cells, wide_limits.num_x_cells, CV_8UC3);
-    for (int y = 0; y < wide_limits.num_y_cells; ++y) {
-      for (int x = 0; x < wide_limits.num_x_cells; ++x) {
-        const int flat_index = y * wide_limits.num_x_cells + x;
-        const uint8_t value = 255 - cells[flat_index];
-        image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
-      }
-    }
-
-    for (const Eigen::Vector3f& point : rotated_point_cloud) {
-      const Eigen::Array2i index = limits_.GetCellIndex(point.head(2));
-      image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 255, 0);
-    }
-
-    cv::imwrite("/home/linjs/图片/rotated_point_cloud.png", image);
-  }
 
   const std::vector<std::vector<Eigen::Vector3f>> rotated_scans =
       GenerateRotatedScans(rotated_point_cloud, search_parameters);
@@ -267,7 +218,7 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
                             Eigen::Vector3f::UnitZ()));
 
       const std::vector<Eigen::Vector3f> rotated_point_cloud =
-          TransformsPointCloud(point_cloud, rigid3f);
+          TransformPointCloud(point_cloud, rigid3f);
 
       const PrecomputationGrid2D& precomputation_grid =
           precomputation_grid_stack_->Get(0);

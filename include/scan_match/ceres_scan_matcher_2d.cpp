@@ -52,7 +52,7 @@ void CeresScanMatcher2D::Match(
       std::atan2(initial_pose_estimate(1, 0), initial_pose_estimate(0, 0));
 
   double ceres_pose_estimate[3] = {initial_pose_estimate(0, 3),
-                                   initial_pose_estimate(1, 3), angle};
+                                  initial_pose_estimate(1, 3), angle};
 
   ceres::Problem problem;
   CHECK_GT(occupied_space_weight_, 0.);
@@ -78,14 +78,14 @@ void CeresScanMatcher2D::Match(
       //   break;
   }
 
-  // const Eigen::Vector2d target_translation =
-  //     initial_pose_estimate.block<2, 1>(0, 3);
-  // problem.AddResidualBlock(TranslationDeltaCostFunctor2D::Create(
-  //                              translation_weight_, target_translation),
-  //                          nullptr /* loss function */, ceres_pose_estimate);
-  // problem.AddResidualBlock(RotationDeltaCostFunctor2D::Create(
-  //                              rotation_weight_, ceres_pose_estimate[2]),
-  //                          nullptr /* loss function */, ceres_pose_estimate);
+  const Eigen::Vector2d target_translation =
+      initial_pose_estimate.block<2, 1>(0, 3);
+  problem.AddResidualBlock(TranslationDeltaCostFunctor2D::Create(
+                               translation_weight_, target_translation),
+                           nullptr /* loss function */, ceres_pose_estimate);
+  problem.AddResidualBlock(RotationDeltaCostFunctor2D::Create(
+                               rotation_weight_, ceres_pose_estimate[2]),
+                           nullptr /* loss function */, ceres_pose_estimate);
 
   ceres::Solver::Options options;
   options.use_nonmonotonic_steps = false;

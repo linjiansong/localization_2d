@@ -33,10 +33,11 @@
 #include "Eigen/Core"
 #include "Eigen/Dense"
 #include "common/base_type.h"
-#include "include/scan_match/probability_grid.h"
 #include "common/kdtree_adaptor.h"
 #include "include/scan_match/ceres_scan_matcher_2d.h"
 #include "include/scan_match/fast_correlative_scan_matcher_2d.h"
+#include "include/scan_match/real_time_correlative_scan_matcher_2d.h"
+#include "include/scan_match/probability_grid.h"
 
 namespace solex_robot::navigation::localization_2d {
 
@@ -55,23 +56,32 @@ class Localization {
   const std::deque<KeyframePtr>& keyframe_buffer() { return keyframe_buffer_; };
 
  private:
-  Eigen::Matrix3d ComputeTransformation2D(
+  Eigen::Matrix4d ComputeTransformation2D(
       const std::vector<Eigen::Vector2d>& source_points,
       const std::vector<Eigen::Vector2d>& target_points);
-  Eigen::Matrix3d ICP(const std::vector<Eigen::Vector3d>& points,
+  Eigen::Matrix4d ICP(const std::vector<Eigen::Vector3d>& points,
+                      const Eigen::Matrix4d& initial_pose,
                       const int max_iterations = 20);
 
   std::pair<Eigen::Matrix4d, double> MatchGlobalMap(
       const std::vector<Eigen::Vector3d>& points,
       const Eigen::Matrix4d& initial_pose);
 
-  std::pair<Eigen::Matrix4d, double> MatchLobalMap(
+  std::pair<Eigen::Matrix4d, double> MatchLocalMap(
       const std::vector<Eigen::Vector3d>& points,
       const Eigen::Matrix4d& initial_pose);
+
+  void GlobalLocalization(const PointCloud& point_cloud);
+
+  void Relocalization(const PointCloud& point_cloud);
+
+  void Track(const PointCloud& point_cloud);
 
   void UpdateKeyframeBuffer();
 
   void GlobalOptimize();
+
+  void GlobalLocalization();
 
  private:
   std::shared_ptr<ProbabilityGrid> probability_grid_;
@@ -83,6 +93,9 @@ class Localization {
   int keyframe_interval_ = 0;
   std::shared_ptr<CeresScanMatcher2D> ceres_scan_matcher_;
   std::shared_ptr<FastCorrelativeScanMatcher2D> fast_correlative_scan_matcher_;
+  std::shared_ptr<RealTimeCorrelativeScanMatcher2D> real_time_correlative_scan_matcher_;
+  LocalizationStatus localization_status_ = LocalizationStatus::kUnknown;
+  int cout_ = 0;
   // Todo: PoseExtractor
 };
 }  // namespace solex_robot::navigation::localization_2d

@@ -33,6 +33,9 @@
 #include "include/scan_match/probability_grid.h"
 
 namespace solex_robot::navigation::localization_2d {
+namespace {
+constexpr int kPadding = INT_MAX / 4;
+}
 
 class TranslationDeltaCostFunctor2D {
  public:
@@ -185,6 +188,7 @@ class OccupiedSpaceCostFunction2D {
   OccupiedSpaceCostFunction2D& operator=(const OccupiedSpaceCostFunction2D&) =
       delete;
 
+ private:
   const double scaling_factor_;
   const std::vector<Eigen::Vector3d>& point_cloud_;
   const ProbabilityGrid& probability_grid_;
