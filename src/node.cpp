@@ -249,32 +249,32 @@ void LocalizationNode::HandleGridMapMessage(
 }
 
 void LocalizationNode::PublishPointCloud() {
-  const auto keyframe_buffer = locator_->keyframe_buffer();
+  // const auto keyframe_buffer = locator_->keyframe_buffer();
 
-  pcl::PointCloud<pcl::PointXYZI> cloud_points;
-  for (const auto& keyframe : keyframe_buffer) {
-    for (const TimedPointCloud& timed_point : keyframe->point_cloud.points) {
-      const Eigen::Vector3d transformed_point =
-          TransformPoint(keyframe->optimized_pose, timed_point.position);
-      pcl::PointXYZI pcl_point;
-      pcl_point.x = transformed_point.x();
-      pcl_point.y = transformed_point.y();
-      pcl_point.z = transformed_point.z();
-      pcl_point.intensity = 0.0;
-      cloud_points.push_back(pcl_point);
-    }
-  }
+  // pcl::PointCloud<pcl::PointXYZI> cloud_points;
+  // for (const auto& keyframe : keyframe_buffer) {
+  //   for (const TimedPointCloud& timed_point : keyframe->point_cloud.points) {
+  //     const Eigen::Vector3d transformed_point =
+  //         TransformPoint(keyframe->optimized_pose, timed_point.position);
+  //     pcl::PointXYZI pcl_point;
+  //     pcl_point.x = transformed_point.x();
+  //     pcl_point.y = transformed_point.y();
+  //     pcl_point.z = transformed_point.z();
+  //     pcl_point.intensity = 0.0;
+  //     cloud_points.push_back(pcl_point);
+  //   }
+  // }
 
-  // Convert to ROS2 message
-  sensor_msgs::msg::PointCloud2 output_msg;
-  pcl::toROSMsg(cloud_points, output_msg);
+  // // Convert to ROS2 message
+  // sensor_msgs::msg::PointCloud2 output_msg;
+  // pcl::toROSMsg(cloud_points, output_msg);
 
-  // Add timestamp
-  output_msg.header.stamp = this->now();
-  output_msg.header.frame_id = "map";
+  // // Add timestamp
+  // output_msg.header.stamp = this->now();
+  // output_msg.header.frame_id = "map";
 
-  // Publish
-  point_cloud_publisher_->publish(output_msg);
+  // // Publish
+  // point_cloud_publisher_->publish(output_msg);
 }
 
 void LocalizationNode::PublishRobotPose() {

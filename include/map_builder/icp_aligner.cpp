@@ -297,7 +297,7 @@ transform::Rigid2d ICPAligner::ComputeTransformation2D(
 
 void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
                        const transform::Rigid2d& initial_pose,
-                       transform::Rigid2d* pose_estimate, double* score) {
+                       transform::Rigid2d* pose_estimate, float* score) {
   if (point_cloud.empty() || search_tree_ == nullptr) {
     *pose_estimate = initial_pose;
     if (score) *score = 0.0;

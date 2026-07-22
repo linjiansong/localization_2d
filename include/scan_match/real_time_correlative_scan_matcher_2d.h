@@ -49,7 +49,7 @@ class RealTimeCorrelativeScanMatcher2D {
   // 'initial_pose_estimate' then updates 'pose_estimate' with the result and
   // returns the score.
   void Match(const transform::Rigid2d& initial_pose_estimate,
-             const std::vector<Eigen::Vector3f>& point_cloud,
+             const std::vector<Eigen::Vector3d>& point_cloud,
              const ProbabilityGrid& probability_grid,
              transform::Rigid2d* pose_estimate, float* score) const;
 
@@ -69,11 +69,11 @@ class RealTimeCorrelativeScanMatcher2D {
 
   std::vector<DiscreteScan2D> DiscretizeScans(
       const MapLimits& map_limits,
-      const std::vector<std::vector<Eigen::Vector3f>>& scans,
+      const std::vector<std::vector<Eigen::Vector3d>>& scans,
       const Eigen::Translation2f& initial_translation) const;
 
-  std::vector<std::vector<Eigen::Vector3f>> GenerateRotatedScans(
-      const std::vector<Eigen::Vector3f>& point_cloud,
+  std::vector<std::vector<Eigen::Vector3d>> GenerateRotatedScans(
+      const std::vector<Eigen::Vector3d>& point_cloud,
       const SearchParameters& search_parameters) const;
 
  private:

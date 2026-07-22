@@ -30,6 +30,7 @@
 #include "Eigen/Core"
 #include "ceres/ceres.h"
 #include "common/base_type.h"
+#include "common/rigid_transform.h"
 #include "include/scan_match/probability_grid.h"
 
 namespace solex_robot::navigation::localization_2d {
@@ -48,10 +49,10 @@ class CeresScanMatcher2D {
   // Aligns 'point_cloud' within the 'grid' given an
   // 'initial_pose_estimate' and returns a 'pose_estimate' and the solver
   // 'summary'.
-  void Match(const Eigen::Matrix4d& initial_pose_estimate,
+  void Match(const transform::Rigid2d& initial_pose_estimate,
              const std::vector<Eigen::Vector3d>& point_cloud,
              const std::shared_ptr<ProbabilityGrid> probability_grid,
-             Eigen::Matrix4d* const pose_estimate, double* const score);
+             transform::Rigid2d* const pose_estimate, float* const score);
 
  private:
   const double occupied_space_weight_;

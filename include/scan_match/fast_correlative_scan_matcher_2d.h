@@ -83,21 +83,21 @@ class FastCorrelativeScanMatcher2D {
   // is possible, true is returned, and 'score' and 'pose_estimate' are updated
   // with the result.
   // bool Match(const transform::Rigid2d& initial_pose_estimate,
-  //            const std::vector<Eigen::Vector3f>& point_cloud, float
+  //            const std::vector<Eigen::Vector3d>& point_cloud, float
   //            min_score, float* score, transform::Rigid2d* pose_estimate)
   //            const;
 
   std::vector<DiscreteScan2D> DiscretizeScans(
       const MapLimits& map_limits,
-      const std::vector<std::vector<Eigen::Vector3f>>& scans,
+      const std::vector<std::vector<Eigen::Vector3d>>& scans,
       const Eigen::Translation2f& initial_translation) const;
 
-  std::vector<std::vector<Eigen::Vector3f>> GenerateRotatedScans(
-      const std::vector<Eigen::Vector3f>& point_cloud,
+  std::vector<std::vector<Eigen::Vector3d>> GenerateRotatedScans(
+      const std::vector<Eigen::Vector3d>& point_cloud,
       const SearchParameters& search_parameters) const;
 
   bool MatchLocalSubmap(const transform::Rigid2d& initial_pose_estimate,
-                        const std::vector<Eigen::Vector3f>& point_cloud,
+                        const std::vector<Eigen::Vector3d>& point_cloud,
                         float min_score, float* score,
                         transform::Rigid2d* pose_estimate) const;
 
@@ -105,7 +105,7 @@ class FastCorrelativeScanMatcher2D {
   // restricted to the configured search window. If a score above 'min_score'
   // (excluding equality) is possible, true is returned, and 'score' and
   // 'pose_estimate' are updated with the result.
-  bool MatchFullSubmap(const std::vector<Eigen::Vector3f>& point_cloud,
+  bool MatchFullSubmap(const std::vector<Eigen::Vector3d>& point_cloud,
                        float min_score, float* score,
                        transform::Rigid2d* pose_estimate) const;
 
@@ -116,7 +116,7 @@ class FastCorrelativeScanMatcher2D {
   bool MatchWithSearchParameters(
       SearchParameters search_parameters,
       const transform::Rigid2d& initial_pose_estimate,
-      const std::vector<Eigen::Vector3f>& point_cloud, float min_score,
+      const std::vector<Eigen::Vector3d>& point_cloud, float min_score,
       float* score, transform::Rigid2d* pose_estimate) const;
   std::vector<Candidate2D> ComputeLowestResolutionCandidates(
       const std::vector<DiscreteScan2D>& discrete_scans,

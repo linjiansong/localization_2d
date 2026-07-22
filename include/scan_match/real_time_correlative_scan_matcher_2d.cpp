@@ -35,13 +35,13 @@
 namespace solex_robot::navigation::localization_2d {
 
 namespace {
-std::vector<Eigen::Vector3f> TransformPointCloud(
-    const std::vector<Eigen::Vector3f>& point_cloud,
+std::vector<Eigen::Vector3d> TransformPointCloud(
+    const std::vector<Eigen::Vector3d>& point_cloud,
     const transform::Rigid3f& transform) {
-  std::vector<Eigen::Vector3f> result;
+  std::vector<Eigen::Vector3d> result;
   result.reserve(point_cloud.size());
-  for (const Eigen::Vector3f& point : point_cloud) {
-    result.emplace_back(transform * point);
+  for (const Eigen::Vector3d& point : point_cloud) {
+    result.emplace_back((transform * point.cast<float>()).cast<double>());
   }
   return result;
 }
@@ -104,16 +104,16 @@ RealTimeCorrelativeScanMatcher2D::GenerateExhaustiveSearchCandidates(
 
 std::vector<DiscreteScan2D> RealTimeCorrelativeScanMatcher2D::DiscretizeScans(
     const MapLimits& map_limits,
-    const std::vector<std::vector<Eigen::Vector3f>>& scans,
+    const std::vector<std::vector<Eigen::Vector3d>>& scans,
     const Eigen::Translation2f& initial_translation) const {
   std::vector<DiscreteScan2D> discrete_scans;
   discrete_scans.reserve(scans.size());
-  for (const std::vector<Eigen::Vector3f>& scan : scans) {
+  for (const std::vector<Eigen::Vector3d>& scan : scans) {
     discrete_scans.emplace_back();
     discrete_scans.back().reserve(scan.size());
-    for (const Eigen::Vector3f& point : scan) {
+    for (const Eigen::Vector3d& point : scan) {
       const Eigen::Vector2f translated_point =
-          Eigen::Affine2f(initial_translation) * point.head<2>();
+          Eigen::Affine2f(initial_translation) * point.cast<float>().head<2>();
       discrete_scans.back().push_back(
           map_limits.GetCellIndex(translated_point));
     }
@@ -121,11 +121,11 @@ std::vector<DiscreteScan2D> RealTimeCorrelativeScanMatcher2D::DiscretizeScans(
   return discrete_scans;
 }
 
-std::vector<std::vector<Eigen::Vector3f>>
+std::vector<std::vector<Eigen::Vector3d>>
 RealTimeCorrelativeScanMatcher2D::GenerateRotatedScans(
-    const std::vector<Eigen::Vector3f>& point_cloud,
+    const std::vector<Eigen::Vector3d>& point_cloud,
     const SearchParameters& search_parameters) const {
-  std::vector<std::vector<Eigen::Vector3f>> rotated_scans;
+  std::vector<std::vector<Eigen::Vector3d>> rotated_scans;
   rotated_scans.reserve(search_parameters.num_scans);
 
   double delta_theta = -search_parameters.num_angular_perturbations *
@@ -142,13 +142,13 @@ RealTimeCorrelativeScanMatcher2D::GenerateRotatedScans(
 
 void RealTimeCorrelativeScanMatcher2D::Match(
     const transform::Rigid2d& initial_pose_estimate,
-    const std::vector<Eigen::Vector3f>& point_cloud,
+    const std::vector<Eigen::Vector3d>& point_cloud,
     const ProbabilityGrid& probability_grid, transform::Rigid2d* pose_estimate,
     float* score) const {
   CHECK(pose_estimate != nullptr);
 
   const Eigen::Rotation2Dd initial_rotation = initial_pose_estimate.rotation();
-  const std::vector<Eigen::Vector3f> rotated_point_cloud = TransformPointCloud(
+  const std::vector<Eigen::Vector3d> rotated_point_cloud = TransformPointCloud(
       point_cloud,
       transform::Rigid3f::Rotation(Eigen::AngleAxisf(
           initial_rotation.cast<float>().angle(), Eigen::Vector3f::UnitZ())));
@@ -156,7 +156,7 @@ void RealTimeCorrelativeScanMatcher2D::Match(
       options_.linear_search_window, options_.angular_search_window,
       rotated_point_cloud, probability_grid.map_limits().resolution());
 
-  const std::vector<std::vector<Eigen::Vector3f>> rotated_scans =
+  const std::vector<std::vector<Eigen::Vector3d>> rotated_scans =
       GenerateRotatedScans(rotated_point_cloud, search_parameters);
   const std::vector<DiscreteScan2D> discrete_scans = DiscretizeScans(
       probability_grid.map_limits(), rotated_scans,

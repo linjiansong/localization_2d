@@ -44,15 +44,13 @@ CeresScanMatcher2D::CeresScanMatcher2D(const double occupied_space_weight,
       rotation_weight_(rotation_weight) {}
 
 void CeresScanMatcher2D::Match(
-    const Eigen::Matrix4d& initial_pose_estimate,
+    const transform::Rigid2d& initial_pose_estimate,
     const std::vector<Eigen::Vector3d>& point_cloud,
     const std::shared_ptr<ProbabilityGrid> probability_grid,
-    Eigen::Matrix4d* const pose_estimate, double* const score) {
-  const double angle =
-      std::atan2(initial_pose_estimate(1, 0), initial_pose_estimate(0, 0));
-
-  double ceres_pose_estimate[3] = {initial_pose_estimate(0, 3),
-                                  initial_pose_estimate(1, 3), angle};
+    transform::Rigid2d* const pose_estimate, float* const score) {
+  double ceres_pose_estimate[3] = {initial_pose_estimate.translation().x(),
+                                   initial_pose_estimate.translation().y(),
+                                   initial_pose_estimate.rotation().angle()};
 
   ceres::Problem problem;
   CHECK_GT(occupied_space_weight_, 0.);
@@ -78,11 +76,10 @@ void CeresScanMatcher2D::Match(
       //   break;
   }
 
-  const Eigen::Vector2d target_translation =
-      initial_pose_estimate.block<2, 1>(0, 3);
-  problem.AddResidualBlock(TranslationDeltaCostFunctor2D::Create(
-                               translation_weight_, target_translation),
-                           nullptr /* loss function */, ceres_pose_estimate);
+  problem.AddResidualBlock(
+      TranslationDeltaCostFunctor2D::Create(
+          translation_weight_, initial_pose_estimate.translation()),
+      nullptr /* loss function */, ceres_pose_estimate);
   problem.AddResidualBlock(RotationDeltaCostFunctor2D::Create(
                                rotation_weight_, ceres_pose_estimate[2]),
                            nullptr /* loss function */, ceres_pose_estimate);
@@ -103,11 +100,8 @@ void CeresScanMatcher2D::Match(
   ceres::Solve(options, &problem, &summary);
   // LOG(INFO) << summary.BriefReport();
 
-  (*pose_estimate)(0, 3) = ceres_pose_estimate[0];
-  (*pose_estimate)(1, 3) = ceres_pose_estimate[1];
-  pose_estimate->block<3, 3>(0, 0) =
-      Eigen::AngleAxisd(ceres_pose_estimate[2], Eigen::Vector3d::UnitZ())
-          .toRotationMatrix();
+  *pose_estimate = transform::Rigid2d(
+      {ceres_pose_estimate[0], ceres_pose_estimate[1]}, ceres_pose_estimate[2]);
 
   // 计算最终的匹配得分[add for localization]
   {
@@ -115,18 +109,16 @@ void CeresScanMatcher2D::Match(
 
     *score = 0.0;
     for (const Eigen::Vector3d& point : point_cloud) {
-      const Eigen::Vector3d world = pose_estimate->block<3, 3>(0, 0) * point +
-                                    pose_estimate->block<3, 1>(0, 3);
+      const Eigen::Vector2d world_point = (*pose_estimate) * point.head(2);
 
       const Eigen::Array2i proposed_xy_index =
-          map_limits.GetCellIndex(world.head(2).cast<float>());
+          map_limits.GetCellIndex(world_point.cast<float>());
       const float probability =
           probability_grid->GetProbability(proposed_xy_index);
       *score += probability;
     }
 
     *score /= static_cast<float>(point_cloud.size());
-    LOG(INFO) << "******************** score = " << *score;
   }
 }
 

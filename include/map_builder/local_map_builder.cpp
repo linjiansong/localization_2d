@@ -45,7 +45,7 @@ bool LocalMapBuilder::IsKeyframe(const transform::Rigid2d& current_pose) {
 void LocalMapBuilder::AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
                                     const transform::Rigid2d& initial_pose,
                                     transform::Rigid2d* pose_estimate,
-                                    double* score) {
+                                    float* score, bool* is_keyframe) {
   if (estimated_poses_.empty()) {
     last_keyfframe_pose_ = initial_pose;
     // ndt_aligner_ = std::make_unique<NDTAligner>();
@@ -56,6 +56,10 @@ void LocalMapBuilder::AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
     estimated_poses_.emplace_back(initial_pose);
     map_points_.insert(map_points_.begin(), point_cloud.begin(),
                        point_cloud.end());
+
+    *pose_estimate = initial_pose;
+    *score = 1.0;
+    *is_keyframe = true;
     return;
   }
 
@@ -64,8 +68,11 @@ void LocalMapBuilder::AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
   icp_aligner_->Align(point_cloud, initial_pose, pose_estimate, score);
   estimated_poses_.emplace_back(*pose_estimate);
   if (!IsKeyframe(*pose_estimate)) {
+    *is_keyframe = false;
     return;
   }
+
+  *is_keyframe = true;
 
   const transform::Rigid3d rigid3d(
       Eigen::Vector3d(pose_estimate->translation().x(),

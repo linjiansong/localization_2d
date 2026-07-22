@@ -99,7 +99,7 @@ struct SearchParameters {
 
   SearchParameters(const double linear_search_window,
                    const double angular_search_window,
-                   const std::vector<Eigen::Vector3f>& point_cloud,
+                   const std::vector<Eigen::Vector3d>& point_cloud,
                    const double resolution)
       : resolution(resolution) {
     // We set this value to something on the order of resolution to make sure

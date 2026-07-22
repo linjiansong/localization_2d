@@ -37,11 +37,13 @@
 namespace solex_robot::navigation::localization_2d {
 
 struct ICP2DCostFunction {
-  ICP2DCostFunction(const Eigen::Vector2d& source_point, const Eigen::Vector2d& target_point)
+  ICP2DCostFunction(const Eigen::Vector2d& source_point,
+                    const Eigen::Vector2d& target_point)
       : source_point_(source_point), target_point_(target_point) {}
 
   template <typename T>
-  bool operator()(const T* const translation, const T* const yaw, T* residual) const {
+  bool operator()(const T* const translation, const T* const yaw,
+                  T* residual) const {
     // 1. 将常规的 double 坐标显式转换为模板类型 T (支持 ceres::Jet)
     T px = T(source_point_.x());
     T py = T(source_point_.y());
@@ -83,7 +85,7 @@ class ICPAligner {
 
   void Align(const std::vector<Eigen::Vector3d>& point_cloud,
              const transform::Rigid2d& initial_pose,
-             transform::Rigid2d* final_pose, double* score);
+             transform::Rigid2d* final_pose, float* score);
 
  private:
   transform::Rigid2d ComputeTransformation2D(

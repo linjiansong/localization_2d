@@ -33,8 +33,8 @@
 #include <vector>
 
 #include "common/rigid_transform.h"
-#include "include/map_builder/ndt_aligner.h"
 #include "include/map_builder/icp_aligner.h"
+#include "include/map_builder/ndt_aligner.h"
 
 namespace solex_robot::navigation::localization_2d {
 class LocalMapBuilder {
@@ -43,7 +43,8 @@ class LocalMapBuilder {
 
   void AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
                      const transform::Rigid2d& initial_pose,
-                     transform::Rigid2d* final_pose, double* score);
+                     transform::Rigid2d* final_pose, float* score,
+                     bool* is_keyframe);
 
   const std::vector<Eigen::Vector3d>& map_points() { return map_points_; }
 

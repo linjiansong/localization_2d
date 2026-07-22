@@ -37,13 +37,13 @@
 
 namespace solex_robot::navigation::localization_2d {
 namespace {
-std::vector<Eigen::Vector3f> TransformPointCloud(
-    const std::vector<Eigen::Vector3f>& point_cloud,
+std::vector<Eigen::Vector3d> TransformPointCloud(
+    const std::vector<Eigen::Vector3d>& point_cloud,
     const transform::Rigid3f& transform) {
-  std::vector<Eigen::Vector3f> result;
+  std::vector<Eigen::Vector3d> result;
   result.reserve(point_cloud.size());
-  for (const Eigen::Vector3f& point : point_cloud) {
-    result.emplace_back(transform * point);
+  for (const Eigen::Vector3d& point : point_cloud) {
+    result.emplace_back((transform * point.cast<float>()).cast<double>());
   }
   return result;
 }
@@ -98,16 +98,16 @@ FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
 
 std::vector<DiscreteScan2D> FastCorrelativeScanMatcher2D::DiscretizeScans(
     const MapLimits& map_limits,
-    const std::vector<std::vector<Eigen::Vector3f>>& scans,
+    const std::vector<std::vector<Eigen::Vector3d>>& scans,
     const Eigen::Translation2f& initial_translation) const {
   std::vector<DiscreteScan2D> discrete_scans;
   discrete_scans.reserve(scans.size());
-  for (const std::vector<Eigen::Vector3f>& scan : scans) {
+  for (const std::vector<Eigen::Vector3d>& scan : scans) {
     discrete_scans.emplace_back();
     discrete_scans.back().reserve(scan.size());
-    for (const Eigen::Vector3f& point : scan) {
+    for (const Eigen::Vector3d& point : scan) {
       const Eigen::Vector2f translated_point =
-          Eigen::Affine2f(initial_translation) * point.head<2>();
+          Eigen::Affine2f(initial_translation) * point.cast<float>().head<2>();
       discrete_scans.back().push_back(
           map_limits.GetCellIndex(translated_point));
     }
@@ -115,11 +115,11 @@ std::vector<DiscreteScan2D> FastCorrelativeScanMatcher2D::DiscretizeScans(
   return discrete_scans;
 }
 
-std::vector<std::vector<Eigen::Vector3f>>
+std::vector<std::vector<Eigen::Vector3d>>
 FastCorrelativeScanMatcher2D::GenerateRotatedScans(
-    const std::vector<Eigen::Vector3f>& point_cloud,
+    const std::vector<Eigen::Vector3d>& point_cloud,
     const SearchParameters& search_parameters) const {
-  std::vector<std::vector<Eigen::Vector3f>> rotated_scans;
+  std::vector<std::vector<Eigen::Vector3d>> rotated_scans;
   rotated_scans.reserve(search_parameters.num_scans);
 
   double delta_theta = -search_parameters.num_angular_perturbations *
@@ -137,7 +137,7 @@ FastCorrelativeScanMatcher2D::GenerateRotatedScans(
 // match_type = Initial
 bool FastCorrelativeScanMatcher2D::MatchLocalSubmap(
     const transform::Rigid2d& initial_pose_estimate,
-    const std::vector<Eigen::Vector3f>& point_cloud, const float min_score,
+    const std::vector<Eigen::Vector3d>& point_cloud, const float min_score,
     float* score, transform::Rigid2d* pose_estimate) const {
   // LOG(INFO) << "initial_localization_linear_search_window = " <<
   // options_.initial_localization_linear_search_window(); LOG(INFO) <<
@@ -154,7 +154,7 @@ bool FastCorrelativeScanMatcher2D::MatchLocalSubmap(
 
 // match_type = Global
 bool FastCorrelativeScanMatcher2D::MatchFullSubmap(
-    const std::vector<Eigen::Vector3f>& point_cloud, float min_score,
+    const std::vector<Eigen::Vector3d>& point_cloud, float min_score,
     float* score, transform::Rigid2d* pose_estimate) const {
   // Compute a search window around the center of the submap that includes it
   // fully.
@@ -174,18 +174,18 @@ bool FastCorrelativeScanMatcher2D::MatchFullSubmap(
 bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
     SearchParameters search_parameters,
     const transform::Rigid2d& initial_pose_estimate,
-    const std::vector<Eigen::Vector3f>& point_cloud, float min_score,
+    const std::vector<Eigen::Vector3d>& point_cloud, float min_score,
     float* score, transform::Rigid2d* pose_estimate) const {
   CHECK(score != nullptr);
   CHECK(pose_estimate != nullptr);
 
   const Eigen::Rotation2Dd initial_rotation = initial_pose_estimate.rotation();
-  const std::vector<Eigen::Vector3f> rotated_point_cloud = TransformPointCloud(
+  const std::vector<Eigen::Vector3d> rotated_point_cloud = TransformPointCloud(
       point_cloud,
       transform::Rigid3f::Rotation(Eigen::AngleAxisf(
           initial_rotation.cast<float>().angle(), Eigen::Vector3f::UnitZ())));
 
-  const std::vector<std::vector<Eigen::Vector3f>> rotated_scans =
+  const std::vector<std::vector<Eigen::Vector3d>> rotated_scans =
       GenerateRotatedScans(rotated_point_cloud, search_parameters);
   const std::vector<DiscreteScan2D> discrete_scans = DiscretizeScans(
       limits_, rotated_scans,
@@ -217,15 +217,15 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
           Eigen::AngleAxisf(pose_estimate->rotation().angle(),
                             Eigen::Vector3f::UnitZ()));
 
-      const std::vector<Eigen::Vector3f> rotated_point_cloud =
+      const std::vector<Eigen::Vector3d> rotated_point_cloud =
           TransformPointCloud(point_cloud, rigid3f);
 
       const PrecomputationGrid2D& precomputation_grid =
           precomputation_grid_stack_->Get(0);
 
       float score = 0.0;
-      for (const Eigen::Vector3f point : rotated_point_cloud) {
-        const Eigen::Array2i index = limits_.GetCellIndex(point.head(2));
+      for (const Eigen::Vector3d point : rotated_point_cloud) {
+        const Eigen::Array2i index = limits_.GetCellIndex(point.cast<float>().head(2));
         score += precomputation_grid.GetValue(index);
       }
 
