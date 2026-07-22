@@ -250,9 +250,6 @@ void LocalizationNode::HandleGridMapMessage(
 
 void LocalizationNode::PublishPointCloud() {
   const auto keyframe_buffer = locator_->keyframe_buffer();
-  if (!keyframe_buffer.empty()) {
-    LOG(INFO) << "pose = " << keyframe_buffer.front()->optimized_pose;
-  }
 
   pcl::PointCloud<pcl::PointXYZI> cloud_points;
   for (const auto& keyframe : keyframe_buffer) {
@@ -308,14 +305,10 @@ void LocalizationNode::PublishRobotPose() {
 }
 
 void LocalizationNode::PublishTransform() {
-  const auto keyframe_buffer = locator_->keyframe_buffer();
-  Eigen::Matrix4d curr_pose = Eigen::Matrix4d::Identity();
-  curr_pose.block<3, 3>(0, 0) =
+  Eigen::Matrix4d delta_transform = Eigen::Matrix4d::Identity();
+  delta_transform.block<3, 3>(0, 0) =
       Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()).toRotationMatrix();
-  if (!keyframe_buffer.empty()) {
-    curr_pose = keyframe_buffer.back()->optimized_pose * curr_pose;
-  }
-
+  const Eigen::Matrix4d curr_pose = locator_->curr_pose() * delta_transform;
   const Eigen::Affine3d affine(curr_pose);
   geometry_msgs::msg::TransformStamped tf_info;
   tf_info.header.stamp = this->now();

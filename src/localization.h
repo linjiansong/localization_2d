@@ -34,10 +34,11 @@
 #include "Eigen/Dense"
 #include "common/base_type.h"
 #include "common/kdtree_adaptor.h"
+#include "include/map_builder/local_map_builder.h"
 #include "include/scan_match/ceres_scan_matcher_2d.h"
 #include "include/scan_match/fast_correlative_scan_matcher_2d.h"
-#include "include/scan_match/real_time_correlative_scan_matcher_2d.h"
 #include "include/scan_match/probability_grid.h"
+#include "include/scan_match/real_time_correlative_scan_matcher_2d.h"
 
 namespace solex_robot::navigation::localization_2d {
 
@@ -53,7 +54,10 @@ class Localization {
   void AddInitialPose(const Eigen::Matrix4d& initial_pose);
   void Init();
 
-  const std::deque<KeyframePtr>& keyframe_buffer() { return keyframe_buffer_; };
+  const std::deque<KeyframePtr>& keyframe_buffer() const {
+    return keyframe_buffer_;
+  }
+  const Eigen::Matrix4d& curr_pose() const { return curr_pose_; }
 
  private:
   Eigen::Matrix4d ComputeTransformation2D(
@@ -61,7 +65,7 @@ class Localization {
       const std::vector<Eigen::Vector2d>& target_points);
   Eigen::Matrix4d ICP(const std::vector<Eigen::Vector3d>& points,
                       const Eigen::Matrix4d& initial_pose,
-                      const int max_iterations = 20);
+                      const int max_iterations = 100);
 
   std::pair<Eigen::Matrix4d, double> MatchGlobalMap(
       const std::vector<Eigen::Vector3d>& points,
@@ -93,9 +97,13 @@ class Localization {
   int keyframe_interval_ = 0;
   std::shared_ptr<CeresScanMatcher2D> ceres_scan_matcher_;
   std::shared_ptr<FastCorrelativeScanMatcher2D> fast_correlative_scan_matcher_;
-  std::shared_ptr<RealTimeCorrelativeScanMatcher2D> real_time_correlative_scan_matcher_;
+  std::shared_ptr<RealTimeCorrelativeScanMatcher2D>
+      real_time_correlative_scan_matcher_;
+  std::shared_ptr<LocalMapBuilder> local_map_builder_;
+
   LocalizationStatus localization_status_ = LocalizationStatus::kUnknown;
-  int cout_ = 0;
+  Eigen::Matrix4d curr_pose_ = Eigen::Matrix4d::Identity();
+
   // Todo: PoseExtractor
 };
 }  // namespace solex_robot::navigation::localization_2d

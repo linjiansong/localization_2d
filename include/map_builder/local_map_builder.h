@@ -24,49 +24,36 @@
 
 #pragma once
 
+#include <common/base_type.h>
+#include <common/rigid_transform.h>
+
 #include <Eigen/Core>
+#include <Eigen/Geometry>
 #include <memory>
 #include <vector>
 
+#include "common/rigid_transform.h"
+#include "include/map_builder/ndt_aligner.h"
+
 namespace solex_robot::navigation::localization_2d {
+class LocalMapBuilder {
+ public:
+  LocalMapBuilder() = default;
 
-enum class LocalizationStatus {
-  kUnknown = 0,
-  kInitialization = 1,
-  kFailed = 2,
-  kSuccess = 3,
-  kRelocalization = 4,
-  kGlobalLocalization = 5
+  void AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
+                     const transform::Rigid2d& initial_pose,
+                     transform::Rigid2d* final_pose, double* score);
+
+  const std::vector<Eigen::Vector3d>& map_points() { return map_points_; }
+
+ private:
+  bool IsKeyframe(const transform::Rigid2d& current_pose);
+
+ private:
+  transform::Rigid2d last_keyfframe_pose_;
+  std::unique_ptr<NDTAligner> ndt_aligner_;
+  std::vector<transform::Rigid2d> estimated_poses_;
+  std::vector<Eigen::Vector3d> map_points_;
 };
-
-struct TimedPointCloud {
-  Eigen::Vector3d position;
-  float time = 0.0;
-};
-
-struct PointCloud {
-  std::vector<TimedPointCloud> points;
-  float timestamp = 0.0;
-};
-
-struct State {
-  Eigen::Vector3d position;
-  Eigen::Vector3d rotation;  // so3
-  Eigen::Vector3d velocity;
-};
-
-struct Keyframe {
-  float timestamp = 0.0;
-  PointCloud point_cloud;
-  Eigen::Matrix4d global_pose;     // scan to global map
-  Eigen::Matrix4d local_pose;      // scan to submap
-  Eigen::Matrix4d optimized_pose;  // optimized_pose
-  double global_pose_score = 0.0;
-  double local_pose_score = 0.0;
-  State state;
-};
-
-using KeyframePtr = std::shared_ptr<Keyframe>;
-using PosePtr = std::shared_ptr<double[]>;
 
 }  // namespace solex_robot::navigation::localization_2d

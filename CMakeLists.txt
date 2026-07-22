@@ -36,6 +36,8 @@ add_executable(localization_2d_node
   src/node_main.cpp
   src/node.cpp
   src/localization.cpp
+  include/map_builder/local_map_builder.cpp
+  include/map_builder/ndt_aligner.cpp
   include/scan_match/ceres_scan_matcher_2d.cpp
   include/scan_match/fast_correlative_scan_matcher_2d.cpp
   include/scan_match/precomputation_grid_2d.cpp

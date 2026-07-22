@@ -17,7 +17,7 @@
 //  infringement of the copyright owners' rights may be the subject of the    //
 //  copyright of performers' protection under the Copyright Act. For such     //
 //  illegal activities you will be strictly liable to Solox Robot for any and //
-//  or all damages (including recovery of attorneys' fees) which may be //`
+//  or all damages (including recovery of attorneys' fees) which may be       //
 //  suffered and or incurred as a result of your infringement.                //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,7 +101,7 @@ void CeresScanMatcher2D::Match(
 
   ceres::Solver::Summary summary;
   ceres::Solve(options, &problem, &summary);
-  LOG(INFO) << summary.BriefReport();
+  // LOG(INFO) << summary.BriefReport();
 
   (*pose_estimate)(0, 3) = ceres_pose_estimate[0];
   (*pose_estimate)(1, 3) = ceres_pose_estimate[1];

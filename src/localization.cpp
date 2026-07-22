@@ -26,6 +26,7 @@
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/registration/icp.h>
 #include <pcl_conversions/pcl_conversions.h>
 
 #include <Eigen/Geometry>
@@ -42,10 +43,11 @@ namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr double kMillisecondToSecond = 1.e-3;
 constexpr double kRadianToDegree = 180.0 / M_PI;
+constexpr double kDegreeToRadian = M_PI / 180.0;
 constexpr double kKeyframeMinDistance = 0.2;  // meter
 constexpr double kKeyframeMinAngle = 5.0;     // degree
 constexpr double kICPMinDistance = 1e-4;      // meter
-constexpr double kICPMinAngle = 0.01;          // degree
+constexpr double kICPMinAngle = 0.01;         // degree
 
 constexpr double kOccupiedSpaceWeight = 10.0;
 constexpr double kTranslationWeight = 10.0;
@@ -133,6 +135,65 @@ Eigen::Matrix4d Localization::ComputeTransformation2D(
 Eigen::Matrix4d Localization::ICP(const std::vector<Eigen::Vector3d>& points,
                                   const Eigen::Matrix4d& initial_pose,
                                   const int max_iterations) {
+  pcl::PointCloud<pcl::PointXYZ>::Ptr source_cloud(
+      new pcl::PointCloud<pcl::PointXYZ>);
+  source_cloud->points.resize(points.size());
+  // 遍历转换
+  for (size_t i = 0; i < points.size(); ++i) {
+    source_cloud->points[i].x = static_cast<float>(points[i].x());
+    source_cloud->points[i].y = static_cast<float>(points[i].y());
+    source_cloud->points[i].z = static_cast<float>(points[i].z());
+  }
+
+  // 如果点云是无序的（Unorganized），建议补全以下元数据属性（许多 PCL
+  // 算法需要）
+  source_cloud->width = static_cast<uint32_t>(source_cloud->points.size());
+  source_cloud->height = 1;       // 1 表示无序点云
+  source_cloud->is_dense = true;  // 如果确定没有 NaN/Inf 无效点，可以设为 true
+
+  pcl::PointCloud<pcl::PointXYZ>::Ptr target_cloud(
+      new pcl::PointCloud<pcl::PointXYZ>);
+  for (const auto& keyframe : keyframe_buffer_) {
+    for (const TimedPointCloud& timed_point : keyframe->point_cloud.points) {
+      const Eigen::Vector3d transformed_point =
+          TransformPoint(keyframe->local_pose, timed_point.position);
+      pcl::PointXYZ pcl_point;
+      pcl_point.x = static_cast<float>(transformed_point.x());
+      pcl_point.y = static_cast<float>(transformed_point.y());
+      pcl_point.z = static_cast<float>(transformed_point.z());
+      target_cloud->points.emplace_back(pcl_point);
+    }
+  }
+
+  pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+  icp.setMaximumIterations(50);           // 最大迭代次数
+  icp.setMaxCorrespondenceDistance(0.5);  // 点对最大匹配距离（单位：米）
+  icp.setTransformationEpsilon(1e-6);     // 两次变换矩阵之间的收敛阈值
+  icp.setEuclideanFitnessEpsilon(1e-6);   // 均方误差收敛阈值
+
+  // 4. 输入源点云和目标点云
+  icp.setInputSource(source_cloud);
+  icp.setInputTarget(target_cloud);
+  pcl::PointCloud<pcl::PointXYZ> aligned_output_cloud;
+  icp.align(aligned_output_cloud, initial_pose.cast<float>());
+
+  Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity();
+  if (icp.hasConverged()) {
+    std::cout << "ICP 匹配成功！" << std::endl;
+
+    // 获取配准后的适配得分（误差越小代表匹配质量越高）
+    double fitness_score = icp.getFitnessScore();
+    std::cout << "Fitness Score: " << fitness_score << std::endl;
+
+    // 获取最终求得的 4x4 相对变换矩阵 (Transformation Matrix)
+    transformation_matrix = icp.getFinalTransformation().cast<double>();
+    LOG(INFO) << "Transformation Matrix:\n" << transformation_matrix;
+  } else {
+    LOG(INFO) << "ICP 匹配失败，未收敛。";
+  }
+
+  return transformation_matrix;
+
   static auto debug_node = rclcpp::Node::make_shared("icp_debug_node");
   static auto source_pub =
       debug_node->create_publisher<sensor_msgs::msg::PointCloud2>("icp_source",
@@ -145,7 +206,7 @@ Eigen::Matrix4d Localization::ICP(const std::vector<Eigen::Vector3d>& points,
                                                                   10);
 
   Eigen::Matrix4d final_transform = initial_pose;
-  Eigen::Matrix4d prev_transform = final_transform;
+  Eigen::Matrix4d prev_transform = initial_pose;
   int final_iter = 0;
   std::vector<Eigen::Vector2d> source_points;
   std::vector<Eigen::Vector2d> target_points;
@@ -183,8 +244,11 @@ Eigen::Matrix4d Localization::ICP(const std::vector<Eigen::Vector3d>& points,
     const double delta_distance =
         delta_transform.block<3, 1>(0, 3).norm();  // meter
     const double delta_angle =
-        std::abs(std::atan2(delta_transform(1, 0), delta_transform(0, 0)));
+        std::abs(std::atan2(delta_transform(1, 0), delta_transform(0, 0))) *
+        kRadianToDegree;
     if (delta_distance < kICPMinDistance && delta_angle < kICPMinAngle) {
+      LOG(INFO) << "delta_distance = " << delta_distance
+                << ", delta_angle = " << delta_angle << ", iter = " << iter;
       break;
     }
 
@@ -225,7 +289,7 @@ Eigen::Matrix4d Localization::ICP(const std::vector<Eigen::Vector3d>& points,
 std::pair<Eigen::Matrix4d, double> Localization::MatchGlobalMap(
     const std::vector<Eigen::Vector3d>& points,
     const Eigen::Matrix4d& initial_pose) {
-  LOG(INFO) << "Match global map";
+  // LOG(INFO) << "Match global map";
   if (probability_grid_ == nullptr) {
     LOG(ERROR) << "Not probability grid map found!";
     return std::make_pair(initial_pose, 0.0);
@@ -249,16 +313,15 @@ std::pair<Eigen::Matrix4d, double> Localization::MatchLocalMap(
     const std::vector<Eigen::Vector3d>& points,
     const Eigen::Matrix4d& initial_pose) {
   CHECK_NOTNULL(search_tree_);
-  LOG(INFO) << "initial_pose = " << initial_pose;
   const auto t0 = std::chrono::steady_clock::now();
-  const Eigen::Matrix4d final_transform = ICP(points, initial_pose);
+  const Eigen::Matrix4d local_pose = ICP(points, initial_pose);
 
   // calculate score
   int inlier_count = 0;
   double mean_error = 0.0;
   for (const Eigen::Vector3d& point : points) {
     const Eigen::Vector2d query_point =
-        TransformPoint(final_transform, point).head(2);
+        TransformPoint(local_pose, point).head(2);
     std::vector<size_t> indices(1);
     std::vector<double> sqr_distances(1, std::numeric_limits<double>::max());
     search_tree_->Query(query_point.data(), 1, indices.data(),
@@ -274,13 +337,12 @@ std::pair<Eigen::Matrix4d, double> Localization::MatchLocalMap(
 
   const double score = inlier_count / (points.size() + kEpsilon);
   const auto t1 = std::chrono::steady_clock::now();
-  // LOG(INFO)
-  //     << "MatchLocalMap takes "
-  //     << std::chrono::duration_cast<std::chrono::milliseconds>(t1 -
-  //     t0).count()
-  //     << "ms";
+  LOG(INFO)
+      << "MatchLocalMap takes "
+      << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()
+      << "ms";
 
-  return std::make_pair(final_transform, score);
+  return std::make_pair(local_pose, score);
 }
 
 void Localization::UpdateKeyframeBuffer() {
@@ -291,13 +353,19 @@ void Localization::UpdateKeyframeBuffer() {
   std::unique_lock<std::mutex> lock(keyframe_buffer_mutex_);
   if (keyframe_buffer_.size() > kMaxKeyframeBufferLength) {
     keyframe_buffer_.pop_front();
+    // update local map origin
+    const Eigen::Matrix4d transform =
+        keyframe_buffer_.front()->local_pose.inverse();
+    for (const auto& keyframe : keyframe_buffer_) {
+      keyframe->local_pose = transform * keyframe->local_pose;
+    }
   }
 
   std::vector<Eigen::Vector2d> points_2d;
   for (const auto& keyframe : keyframe_buffer_) {
     for (const TimedPointCloud& timed_point : keyframe->point_cloud.points) {
       const Eigen::Vector3d transformed_point =
-          TransformPoint(keyframe->optimized_pose, timed_point.position);
+          TransformPoint(keyframe->local_pose, timed_point.position);
       points_2d.emplace_back(transformed_point.head(2));
     }
   }
@@ -419,7 +487,7 @@ void Localization::GlobalLocalization(const PointCloud& point_cloud) {
   new_keyframe->timestamp = point_cloud.timestamp;
   new_keyframe->point_cloud = point_cloud;
   new_keyframe->global_pose = global_pose;
-  new_keyframe->local_pose = global_pose;
+  new_keyframe->local_pose = Eigen::Matrix4d::Identity();
   new_keyframe->optimized_pose = global_pose;
   new_keyframe->global_pose_score = match_score;
   new_keyframe->local_pose_score = 1.0;
@@ -431,6 +499,7 @@ void Localization::GlobalLocalization(const PointCloud& point_cloud) {
   ++keyframe_interval_;
   update_keyframe_buffer_ = true;
   localization_status_ = LocalizationStatus::kSuccess;
+  curr_pose_ = global_pose;
   LOG(INFO) << "global_pose = " << global_pose;
 }
 
@@ -442,72 +511,153 @@ void Localization::Relocalization(const PointCloud& point_cloud) {
 
 void Localization::Track(const PointCloud& point_cloud) {
   // match to local map
-  const auto [curr_local_pose, local_pose_score] = MatchLocalMap(
-      ConvertPoint(point_cloud), keyframe_buffer_.back()->local_pose);
-  const KeyframePtr new_keyframe = std::make_shared<Keyframe>();
-  new_keyframe->timestamp = point_cloud.timestamp;
-  new_keyframe->point_cloud = point_cloud;
-  new_keyframe->global_pose = curr_local_pose;
-  new_keyframe->local_pose = curr_local_pose;
-  new_keyframe->optimized_pose = curr_local_pose;
-  new_keyframe->global_pose_score = local_pose_score;
-  new_keyframe->local_pose_score = local_pose_score;
-  keyframe_buffer_.emplace_back(new_keyframe);
-  ++keyframe_interval_;
-  update_keyframe_buffer_ = true;
-  return;
+  const Eigen::Vector2d translation(curr_pose_(0, 3), curr_pose_(1, 3));
+  const double rotation_angle = std::atan2(curr_pose_(1, 0), curr_pose_(0, 0));
+  const transform::Rigid2d initial_pose(translation, rotation_angle);
+
+  transform::Rigid2d pose_estimate;
+  double score = 0.0;
+  local_map_builder_->AddPointCloud(ConvertPoint(point_cloud), initial_pose,
+                                    &pose_estimate, &score);
+
+  Eigen::Matrix4d final_pose = Eigen::Matrix4d::Identity();
+  curr_pose_.block<3, 3>(0, 0) =
+      Eigen::AngleAxisd(pose_estimate.rotation().angle(),
+                        Eigen::Vector3d::UnitZ())
+          .toRotationMatrix();
+  curr_pose_(0, 3) = pose_estimate.translation().x();
+  curr_pose_(1, 3) = pose_estimate.translation().y();
+
+  {
+    static auto debug_node = rclcpp::Node::make_shared("submap_debug_node");
+    static auto submap_pub =
+        debug_node->create_publisher<sensor_msgs::msg::PointCloud2>(
+            "map_points", 10);
+    auto convert_to_ros = [](const std::vector<Eigen::Vector3d>& points) {
+      pcl::PointCloud<pcl::PointXYZ> cloud;
+      cloud.reserve(points.size());
+      for (const Eigen::Vector3d& point : points) {
+        cloud.push_back(pcl::PointXYZ(point.x(), point.y(), point.z()));
+      }
+
+      sensor_msgs::msg::PointCloud2 msg;
+      pcl::toROSMsg(cloud, msg);
+      msg.header.stamp = debug_node->now();
+      msg.header.frame_id = "map";  // 必须和你的 Rviz Global Frame 保持一致
+      return msg;
+    };
+
+    submap_pub->publish(
+        convert_to_ros(local_map_builder_->map_points()));  // 地图上的匹配点
+  }
+
+  // if (!keyframe_buffer_.empty()) {
+  //   const auto [curr_local_pose, local_pose_score] = MatchLocalMap(
+  //       ConvertPoint(point_cloud),
+  //       keyframe_buffer_.front()->optimized_pose.inverse() * curr_pose_);
+  //   const KeyframePtr new_keyframe = std::make_shared<Keyframe>();
+  //   curr_pose_ = keyframe_buffer_.front()->optimized_pose * curr_local_pose;
+  //   new_keyframe->timestamp = point_cloud.timestamp;
+  //   new_keyframe->point_cloud = point_cloud;
+  //   new_keyframe->global_pose = curr_pose_;
+  //   new_keyframe->local_pose = curr_local_pose;
+  //   new_keyframe->optimized_pose = curr_pose_;
+  //   new_keyframe->global_pose_score = local_pose_score;
+  //   new_keyframe->local_pose_score = local_pose_score;
+  //   keyframe_buffer_.emplace_back(new_keyframe);
+  //   ++keyframe_interval_;
+  //   update_keyframe_buffer_ = true;
+  // } else {
+  //   const KeyframePtr new_keyframe = std::make_shared<Keyframe>();
+  //   curr_pose_ = Eigen::Matrix4d::Identity();
+  //   new_keyframe->timestamp = point_cloud.timestamp;
+  //   new_keyframe->point_cloud = point_cloud;
+  //   new_keyframe->global_pose = Eigen::Matrix4d::Identity();
+  //   new_keyframe->local_pose = Eigen::Matrix4d::Identity();
+  //   new_keyframe->optimized_pose = Eigen::Matrix4d::Identity();
+  //   new_keyframe->global_pose_score = 0;
+  //   new_keyframe->local_pose_score = 0;
+  //   keyframe_buffer_.emplace_back(new_keyframe);
+  //   ++keyframe_interval_;
+  //   update_keyframe_buffer_ = true;
+  // }
+  // return;
 
   // Check keyframe
-  const Eigen::Matrix4d prev_local_pose = keyframe_buffer_.back()->local_pose;
-  const Eigen::Matrix4d delta_pose =
-      prev_local_pose.inverse() * curr_local_pose;
-  const double distance = delta_pose.block<3, 1>(0, 3).norm();  // meter
-  const Eigen::AngleAxisd axisd_angle(delta_pose.block<3, 3>(0, 0));
-  const double angle =
-      std::abs(axisd_angle.angle() * kRadianToDegree);  // degree
-  if (distance > kKeyframeMinDistance || angle > kKeyframeMinAngle) {
-    const Eigen::Matrix4d initial_pose = keyframe_buffer_.back()->local_pose;
-    const Eigen::Vector2d translation(initial_pose(0, 3), initial_pose(1, 3));
-    const double rotation_angle =
-        std::atan2(initial_pose(1, 0), initial_pose(0, 0));
-    const transform::Rigid2d initial_pose_estimate(translation, rotation_angle);
-    std::vector<Eigen::Vector3f> eigen_points;
-    eigen_points.reserve(point_cloud.points.size());
-    for (const TimedPointCloud& timed_point : point_cloud.points) {
-      eigen_points.emplace_back(timed_point.position.cast<float>());
-    }
+  // const Eigen::Matrix4d prev_local_pose =
+  // keyframe_buffer_.back()->local_pose; const auto [curr_local_pose,
+  // local_pose_score] = MatchLocalMap(
+  //     ConvertPoint(point_cloud),
+  //     keyframe_buffer_.front()->optimized_pose.inverse() * curr_pose_);
+  // curr_pose_ = keyframe_buffer_.front()->optimized_pose * curr_local_pose;
 
-    transform::Rigid2d pose_estimate;
-    float score;
-    real_time_correlative_scan_matcher_->Match(initial_pose_estimate,
-                                               eigen_points, *probability_grid_,
-                                               &pose_estimate, &score);
-    LOG(INFO) << "++++++++++++++++++++++++++ real time = " << score;
-    Eigen::Matrix4d final_pose = Eigen::Matrix4d::Identity();
-    final_pose.block<3, 3>(0, 0) =
-        Eigen::AngleAxisd(pose_estimate.rotation().angle(),
-                          Eigen::Vector3d::UnitZ())
-            .toRotationMatrix();
-    final_pose(0, 3) = pose_estimate.translation().x();
-    final_pose(1, 3) = pose_estimate.translation().y();
+  // const Eigen::Matrix4d delta_pose =
+  //     prev_local_pose.inverse() * curr_local_pose;
+  // const double distance =
+  //     delta_pose.block<3, 1>(0, 3).norm();  // meterinitial_pose
+  // const Eigen::AngleAxisd axisd_angle(delta_pose.block<3, 3>(0, 0));
+  // const double angle =
+  //     std::abs(axisd_angle.angle() * kRadianToDegree);  // degree
+  // if (distance < kKeyframeMinDistance && angle < kKeyframeMinAngle) {
+  //   return;
+  // }
 
-    const auto [global_pose, global_pose_score] =
-        MatchGlobalMap(ConvertPoint(point_cloud), final_pose);
-    const KeyframePtr new_keyframe = std::make_shared<Keyframe>();
-    new_keyframe->timestamp = point_cloud.timestamp;
-    new_keyframe->point_cloud = point_cloud;
-    new_keyframe->global_pose = global_pose;
-    new_keyframe->local_pose = curr_local_pose;
-    new_keyframe->optimized_pose = curr_local_pose;
-    new_keyframe->global_pose_score = global_pose_score;
-    new_keyframe->local_pose_score = local_pose_score;
-    keyframe_buffer_.emplace_back(new_keyframe);
-    ++keyframe_interval_;
-    update_keyframe_buffer_ = true;
-  }
+  // // calculate initial pose
+  // const Eigen::Matrix4d initial_pose =
+  //     keyframe_buffer_.front()->optimized_pose * curr_local_pose;
+  // const Eigen::Vector2d translation(initial_pose(0, 3), initial_pose(1, 3));
+  // const double rotation_angle =
+  //     std::atan2(initial_pose(1, 0), initial_pose(0, 0));
+  // const transform::Rigid2d initial_pose_estimate(translation,
+  // rotation_angle);
+
+  // std::vector<Eigen::Vector3f> eigen_points;
+  // eigen_points.reserve(point_cloud.points.size());
+  // for (const TimedPointCloud& timed_point : point_cloud.points) {
+  //   eigen_points.emplace_back(timed_point.position.cast<float>());
+  // }
+
+  // transform::Rigid2d pose_estimate;
+  // float score;
+  // real_time_correlative_scan_matcher_->Match(initial_pose_estimate,
+  //                                            eigen_points,
+  //                                            *probability_grid_,
+  //                                            &pose_estimate, &score);
+  // LOG(INFO) << "++++++++++++++++++++++++++ real time = " << score;
+  // Eigen::Matrix4d final_pose = Eigen::Matrix4d::Identity();
+  // final_pose.block<3, 3>(0, 0) =
+  //     Eigen::AngleAxisd(pose_estimate.rotation().angle(),
+  //                       Eigen::Vector3d::UnitZ())
+  //         .toRotationMatrix();
+  // final_pose(0, 3) = pose_estimate.translation().x();
+  // final_pose(1, 3) = pose_estimate.translation().y();
+
+  // const auto [global_pose, global_pose_score] =
+  //     MatchGlobalMap(ConvertPoint(point_cloud), final_pose);
+  // const KeyframePtr new_keyframe = std::make_shared<Keyframe>();
+  // new_keyframe->timestamp = point_cloud.timestamp;
+  // new_keyframe->point_cloud = point_cloud;
+  // new_keyframe->global_pose = global_pose;
+  // new_keyframe->local_pose = curr_local_pose;
+  // new_keyframe->optimized_pose = global_pose;
+  // new_keyframe->global_pose_score = global_pose_score;
+  // new_keyframe->local_pose_score = local_pose_score;
+  // keyframe_buffer_.emplace_back(new_keyframe);
+  // ++keyframe_interval_;
+  // update_keyframe_buffer_ = true;
 }
 
 void Localization::AddPointCloud(const PointCloud& point_cloud) {
+  const auto t0 = std::chrono::steady_clock::now();
+  Track(point_cloud);
+  UpdateKeyframeBuffer();
+  const auto t1 = std::chrono::steady_clock::now();
+  LOG(INFO)
+      << "AddPointCloud takes "
+      << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()
+      << "ms";
+  return;
+
   switch (localization_status_) {
     case LocalizationStatus::kInitialization:
     case LocalizationStatus::kGlobalLocalization: {
@@ -529,16 +679,15 @@ void Localization::AddPointCloud(const PointCloud& point_cloud) {
       break;
   }
 
-  // if (keyframe_interval_ >= kOptimizeKeyframeInterval) {
-  //   const auto t0 = std::chrono::steady_clock::now();
-  //   GlobalOptimize();
-  //   const auto t1 = std::chrono::steady_clock::now();
-  //   LOG(INFO) << "GlobalOptimize takes "
-  //             << std::chrono::duration_cast<std::chrono::milliseconds>(t1 -
-  //             t0)
-  //                    .count()
-  //             << "ms";
-  // }
+  if (keyframe_interval_ >= kOptimizeKeyframeInterval) {
+    const auto t0 = std::chrono::steady_clock::now();
+    GlobalOptimize();
+    const auto t1 = std::chrono::steady_clock::now();
+    LOG(INFO) << "GlobalOptimize takes "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0)
+                     .count()
+              << "ms";
+  }
 
   UpdateKeyframeBuffer();
 }
@@ -576,11 +725,13 @@ void Localization::Init() {
   ceres_scan_matcher_ = std::make_shared<CeresScanMatcher2D>(
       kOccupiedSpaceWeight, kTranslationWeight, kRotationWeight);
 
+  local_map_builder_ = std::make_shared<LocalMapBuilder>();
+
   RealTimeCorrelativeScanMatcherOptions2D options;
   options.linear_search_window = 0.2;
-  options.angular_search_window = 5.0 * M_PI / 180.0;
-  // options.translation_delta_cost_weight = 0.1;
-  // options.rotation_delta_cost_weight = 0.1;
+  options.angular_search_window = 5.0 * kDegreeToRadian;
+  options.translation_delta_cost_weight = 0.1;
+  options.rotation_delta_cost_weight = 0.1;
   real_time_correlative_scan_matcher_ =
       std::make_shared<RealTimeCorrelativeScanMatcher2D>(options);
 }
