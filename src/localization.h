@@ -33,7 +33,6 @@
 #include "Eigen/Core"
 #include "Eigen/Dense"
 #include "common/base_type.h"
-#include "common/kdtree_adaptor.h"
 #include "include/map_builder/local_map_builder.h"
 #include "include/scan_match/ceres_scan_matcher_2d.h"
 #include "include/scan_match/fast_correlative_scan_matcher_2d.h"
@@ -60,13 +59,6 @@ class Localization {
   const Eigen::Matrix4d& curr_pose() const { return curr_pose_; }
 
  private:
-  Eigen::Matrix4d ComputeTransformation2D(
-      const std::vector<Eigen::Vector2d>& source_points,
-      const std::vector<Eigen::Vector2d>& target_points);
-  Eigen::Matrix4d ICP(const std::vector<Eigen::Vector3d>& points,
-                      const Eigen::Matrix4d& initial_pose,
-                      const int max_iterations = 100);
-
   std::pair<Eigen::Matrix4d, double> MatchGlobalMap(
       const std::vector<Eigen::Vector3d>& points,
       const Eigen::Matrix4d& initial_pose);
