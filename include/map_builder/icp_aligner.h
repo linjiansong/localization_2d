@@ -95,6 +95,7 @@ class ICPAligner {
  private:
   std::shared_ptr<KDTree2D> search_tree_;
   std::deque<std::vector<Eigen::Vector3d>> point_cloud_list_;
+  int count_ = 0;
 };
 
 }  // namespace solex_robot::navigation::localization_2d

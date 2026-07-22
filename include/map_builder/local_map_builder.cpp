@@ -67,6 +67,7 @@ void LocalMapBuilder::AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
   // ndt_aligner_->Align(point_cloud, initial_pose, pose_estimate, score);
   icp_aligner_->Align(point_cloud, initial_pose, pose_estimate, score);
   estimated_poses_.emplace_back(*pose_estimate);
+
   if (!IsKeyframe(*pose_estimate)) {
     *is_keyframe = false;
     return;

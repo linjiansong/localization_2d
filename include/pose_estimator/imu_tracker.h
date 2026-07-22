@@ -5,8 +5,8 @@
 //  All users are hereby notified that the materials in the form of digital   //
 //  information available from this software (content, designs, color         //
 //  schemes, graphic styles, images, logo, text, and videos) comes protected  //
-//  under International Copyright Laws. Therefore it should not be reproduced //
-//  in any form digital or offline without prior written permission of        //
+//  under International Copyright Laws. Therefore iter should not be reproduced
+//  // in any form digital or offline without prior written permission of //
 //  Solex Robot.                                                              //
 //                                                                            //
 //  Any unauthorized reprint or material usage (Solex Robot) either manually  //
@@ -24,49 +24,39 @@
 
 #pragma once
 
-#include <Eigen/Core>
-#include <memory>
-#include <vector>
+#include "common/rigid_transform.h"
+#include "Eigen/Geometry"
 
 namespace solex_robot::navigation::localization_2d {
 
-enum class LocalizationStatus {
-  kUnknown = 0,
-  kInitialization = 1,
-  kFailed = 2,
-  kSuccess = 3,
-  kRelocalization = 4,
-  kGlobalLocalization = 5
-};
+class ImuTracker {
+ public:
+  ImuTracker(double imu_gravity_time_constant, double time);
 
-struct TimedPointCloud {
-  Eigen::Vector3d position;
-  double timestamp = 0.0;
-};
-using TimedPointCloudPtr = std::shared_ptr<TimedPointCloud>;
+  // Advances to the given 'time' and updates the orientation to reflect this.
+  void Advance(double time);
 
-struct PointCloud {
-  std::vector<TimedPointCloudPtr> points;
-  double timestamp = 0.0;
-};
+  // Updates from an IMU reading (in the IMU frame).
+  void AddImuLinearAccelerationObservation(
+      const Eigen::Vector3d& imu_linear_acceleration);
 
-struct State {
-  Eigen::Vector3d position;
-  Eigen::Vector3d rotation;  // so3
-  Eigen::Vector3d velocity;
-};
+  void AddImuAngularVelocityObservation(
+      const Eigen::Vector3d& imu_angular_velocity);
 
-struct Keyframe {
-  double timestamp = 0.0;
-  Eigen::Matrix4d global_pose;     // scan to global map
-  Eigen::Matrix4d local_pose;      // scan to submap
-  Eigen::Matrix4d optimized_pose;  // optimized_pose
-  double global_pose_score = 0.0;
-  double local_pose_score = 0.0;
-  State state;
-};
+  // Query the current time.
+  double time() const { return time_; }
 
-using KeyframePtr = std::shared_ptr<Keyframe>;
-using PosePtr = std::shared_ptr<double[]>;
+  // Query the current orientation estimate.
+  Eigen::Quaterniond orientation() const { return orientation_; }
+
+ private:
+  const double imu_gravity_time_constant_;
+  double time_;
+
+  double last_linear_acceleration_time_ = std::numeric_limits<double>::lowest();
+  Eigen::Quaterniond orientation_ = Eigen::Quaterniond::Identity();
+  Eigen::Vector3d gravity_vector_ = Eigen::Vector3d::UnitZ();
+  Eigen::Vector3d imu_angular_velocity_ = Eigen::Vector3d::Zero();
+};
 
 }  // namespace solex_robot::navigation::localization_2d

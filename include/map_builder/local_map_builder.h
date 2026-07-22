@@ -57,6 +57,7 @@ class LocalMapBuilder {
   std::unique_ptr<ICPAligner> icp_aligner_;
   std::vector<transform::Rigid2d> estimated_poses_;
   std::vector<Eigen::Vector3d> map_points_;
+  int count_ = 0;
 };
 
 }  // namespace solex_robot::navigation::localization_2d

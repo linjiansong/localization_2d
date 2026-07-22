@@ -34,6 +34,7 @@
 #include "Eigen/Dense"
 #include "common/base_type.h"
 #include "include/map_builder/local_map_builder.h"
+#include "include/pose_estimator/pose_extrapolator.h"
 #include "include/scan_match/ceres_scan_matcher_2d.h"
 #include "include/scan_match/fast_correlative_scan_matcher_2d.h"
 #include "include/scan_match/probability_grid.h"
@@ -59,6 +60,8 @@ class Localization {
   const Eigen::Matrix4d& curr_pose() const { return curr_pose_; }
 
  private:
+  void DistordPointCloud(const PointCloud& point_cloud);
+
   std::pair<Eigen::Matrix4d, float> MatchGlobalMap(
       const std::vector<Eigen::Vector3d>& points,
       const Eigen::Matrix4d& initial_pose);
@@ -79,16 +82,18 @@ class Localization {
   Eigen::Matrix4d initial_pose_ = Eigen::Matrix4d::Identity();
   std::mutex keyframe_buffer_mutex_;
   int keyframe_interval_ = 0;
+
   std::shared_ptr<CeresScanMatcher2D> ceres_scan_matcher_;
   std::shared_ptr<FastCorrelativeScanMatcher2D> fast_correlative_scan_matcher_;
   std::shared_ptr<RealTimeCorrelativeScanMatcher2D>
       real_time_correlative_scan_matcher_;
   std::shared_ptr<LocalMapBuilder> local_map_builder_;
+  std::shared_ptr<PoseExtrapolator> pose_extrapolator_;
 
   LocalizationStatus localization_status_ = LocalizationStatus::kUnknown;
   transform::Rigid2d last_local_pose_ = transform::Rigid2d::Identity();
   Eigen::Matrix4d curr_pose_ = Eigen::Matrix4d::Identity();
-
+  int count_ = 0;
   // Todo: PoseExtractor
 };
 }  // namespace solex_robot::navigation::localization_2d

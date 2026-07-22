@@ -93,7 +93,8 @@ LocalizationNode::LocalizationNode() : rclcpp::Node("sensor_subscriber_node") {
   point_cloud_publisher_ =
       this->create_publisher<sensor_msgs::msg::PointCloud2>("points_raw", 10);
 
-  pose_publisher_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("robot_pose", 10);
+  pose_publisher_ =
+      this->create_publisher<geometry_msgs::msg::PoseStamped>("robot_pose", 10);
 
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
@@ -116,6 +117,7 @@ void LocalizationNode::HandleScanMessage(
   PointCloud point_cloud;
   point_cloud.timestamp = start_time;
   point_cloud.points.reserve(msg->ranges.size());
+
   for (size_t i = 0; i < msg->ranges.size(); ++i) {
     const float range = msg->ranges[i];
     const double time_offset = msg->time_increment * i;  // second
@@ -132,16 +134,16 @@ void LocalizationNode::HandleScanMessage(
     const Eigen::AngleAxisd rotation(angle, Eigen::Vector3d::UnitZ());
     const Eigen::AngleAxisd rotation_x(M_PI, Eigen::Vector3d::UnitX());
 
-    const Eigen::Vector3d position =
-        rotation_x * rotation * (Eigen::Vector3d(range, 0.0, 0.0));
+    // const Eigen::Vector3d position =
+    //     rotation_x * rotation * (Eigen::Vector3d(range, 0.0, 0.0));
+    const Eigen::Vector3d position = rotation * (Eigen::Vector3d(range, 0.0, 0.0));
 
     const Eigen::Vector3d transformed_position =
         Eigen::Vector3d(position.x(), position.y(), position.z());
 
-    TimedPointCloud timed_point;
-    // timed_point.position = position;
-    timed_point.position = transformed_position;
-    timed_point.time = start_time + time_offset;
+    TimedPointCloudPtr timed_point = std::make_shared<TimedPointCloud>();
+    timed_point->position = transformed_position;
+    timed_point->timestamp = start_time + time_offset;
     point_cloud.points.emplace_back(timed_point);
   }
 
@@ -278,24 +280,21 @@ void LocalizationNode::PublishPointCloud() {
 }
 
 void LocalizationNode::PublishRobotPose() {
-  const auto keyframe_buffer = locator_->keyframe_buffer();
-  if (keyframe_buffer.empty()) {
-    return;
-  }
+  Eigen::Matrix4d delta_transform = Eigen::Matrix4d::Identity();
+  const Eigen::Matrix4d curr_pose = locator_->curr_pose() * delta_transform;
 
-  const Eigen::Matrix4d& latest_pose = keyframe_buffer.back()->optimized_pose;
 
   geometry_msgs::msg::PoseStamped pose_msg;
   pose_msg.header.stamp = this->now();
   pose_msg.header.frame_id = "map";
 
-  pose_msg.pose.position.x = latest_pose(0, 3);
-  pose_msg.pose.position.y = latest_pose(1, 3);
-  pose_msg.pose.position.z = latest_pose(2, 3);
+  pose_msg.pose.position.x = curr_pose(0, 3);
+  pose_msg.pose.position.y = curr_pose(1, 3);
+  pose_msg.pose.position.z = curr_pose(2, 3);
 
-  Eigen::Matrix3d rotation_matrix = latest_pose.block<3, 3>(0, 0);
+  Eigen::Matrix3d rotation_matrix = curr_pose.block<3, 3>(0, 0);
   Eigen::Quaterniond q(rotation_matrix);
-  
+
   pose_msg.pose.orientation.x = q.x();
   pose_msg.pose.orientation.y = q.y();
   pose_msg.pose.orientation.z = q.z();
@@ -315,6 +314,7 @@ void LocalizationNode::PublishTransform() {
 
   tf_info.header.frame_id = "map";
   tf_info.child_frame_id = "laser";
+  
   tf_info.transform = tf2::eigenToTransform(affine).transform;
 
   tf_broadcaster_->sendTransform(tf_info);

@@ -30,6 +30,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 
 #include <Eigen/Geometry>
+#include <execution>
 #include <opencv2/opencv.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -92,8 +93,8 @@ Eigen::Vector3d TransformPoint(const Eigen::Matrix4d& transform,
 std::vector<Eigen::Vector3d> ConvertPoint(const PointCloud& point_cloud) {
   std::vector<Eigen::Vector3d> eigen_points;
   eigen_points.reserve(point_cloud.points.size());
-  for (const TimedPointCloud& timed_point : point_cloud.points) {
-    eigen_points.emplace_back(timed_point.position);
+  for (const TimedPointCloudPtr& timed_point : point_cloud.points) {
+    eigen_points.emplace_back(timed_point->position);
   }
 
   return eigen_points;
@@ -115,7 +116,8 @@ std::pair<Eigen::Matrix4d, float> Localization::MatchGlobalMap(
   transform::Rigid2d ceres_pose_estimate = real_time_pose_estimate;
   // float ceres_match_score = 0.0;
   // transform::Rigid2d ceres_pose_estimate;
-  // ceres_scan_matcher_->Match(real_time_pose_estimate, points, probability_grid_,
+  // ceres_scan_matcher_->Match(real_time_pose_estimate, points,
+  // probability_grid_,
   //                            &ceres_pose_estimate, &ceres_match_score);
   LOG(INFO) << "-------------------------- ceres = " << ceres_match_score;
 
@@ -255,10 +257,56 @@ void Localization::Track(const PointCloud& point_cloud) {
   transform::Rigid2d local_pose_estimate;
   float local_pose_score = 0.0;
   bool is_keyframe = false;
-  local_map_builder_->AddPointCloud(ConvertPoint(point_cloud), last_local_pose_,
-                                    &local_pose_estimate, &local_pose_score,
-                                    &is_keyframe);
+  local_map_builder_->AddPointCloud(
+      ConvertPoint(point_cloud),
+      transform::Project2D(
+          pose_extrapolator_->ExtrapolatePose(point_cloud.timestamp)),
+      &local_pose_estimate, &local_pose_score, &is_keyframe);
+
+  // local_map_builder_->AddPointCloud(ConvertPoint(point_cloud), last_local_pose_,
+  //                                   &local_pose_estimate, &local_pose_score,
+  //                                   &is_keyframe);
+
+  transform::Rigid2d delta_pose =
+      last_local_pose_.inverse() * local_pose_estimate;
+  LOG(INFO) << count_++ << ". delta = " << delta_pose.translation().x() << ", "
+            << delta_pose.translation().x() << ", "
+            << delta_pose.rotation().angle() * 180 / M_PI;
   last_local_pose_ = local_pose_estimate;
+  curr_pose_ = ToMatrix4d(local_pose_estimate);
+
+  pose_extrapolator_->AddPose(
+      point_cloud.timestamp,
+      transform::Rigid3d(
+          Eigen::Vector3d(local_pose_estimate.translation().x(),
+                          local_pose_estimate.translation().y(), 0.),
+          Eigen::AngleAxisd(local_pose_estimate.rotation().angle(),
+                            Eigen::Vector3d::UnitZ())));
+
+  {
+    static auto debug_node = rclcpp::Node::make_shared("submap_debug_node");
+    static auto submap_pub =
+        debug_node->create_publisher<sensor_msgs::msg::PointCloud2>(
+            "map_points", 10);
+    auto convert_to_ros = [](const std::vector<Eigen::Vector3d>& points) {
+      pcl::PointCloud<pcl::PointXYZ> cloud;
+      cloud.reserve(points.size());
+      for (const Eigen::Vector3d& point : points) {
+        cloud.push_back(pcl::PointXYZ(point.x(), point.y(), point.z()));
+      }
+
+      sensor_msgs::msg::PointCloud2 msg;
+      pcl::toROSMsg(cloud, msg);
+      msg.header.stamp = debug_node->now();
+      msg.header.frame_id = "map";  // 必须和你的 Rviz Global Frame 保持一致
+      return msg;
+    };
+
+    submap_pub->publish(
+        convert_to_ros(local_map_builder_->map_points()));  // 地图上的匹配点
+  }
+  return;
+
   if (!is_keyframe) {
     return;
   }
@@ -305,7 +353,30 @@ void Localization::Track(const PointCloud& point_cloud) {
   // }
 }
 
+void Localization::DistordPointCloud(const PointCloud& point_cloud) {
+  const transform::Rigid3d start_pose =
+      pose_extrapolator_->ExtrapolatePose(point_cloud.timestamp);
+
+  for (const TimedPointCloudPtr time_point : point_cloud.points) {
+    const transform::Rigid3d curr_pose =
+        pose_extrapolator_->ExtrapolatePose(time_point->timestamp);
+    time_point->position =
+        start_pose.inverse() * curr_pose * time_point->position;
+  }
+}
+
 void Localization::AddPointCloud(const PointCloud& point_cloud) {
+  if (pose_extrapolator_ == nullptr) {
+    pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
+    pose_extrapolator_->AddPose(point_cloud.timestamp,
+                                transform::Rigid3d::Identity());
+  }
+
+  // DistordPointCloud(point_cloud);
+
+  Track(point_cloud);
+  return;
+
   switch (localization_status_) {
     case LocalizationStatus::kInitialization:
     case LocalizationStatus::kGlobalLocalization: {

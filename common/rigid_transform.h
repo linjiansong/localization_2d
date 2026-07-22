@@ -200,12 +200,67 @@ std::ostream& operator<<(std::ostream& os, const Rigid3<T>& rigid) {
   return os;
 }
 
+template <typename T>
+T GetYaw(const Eigen::Quaternion<T>& rotation) {
+  const Eigen::Matrix<T, 3, 1> direction =
+      rotation * Eigen::Matrix<T, 3, 1>::UnitX();
+  return atan2(direction.y(), direction.x());
+}
+
+// Returns the yaw component in radians of the given 3D transformation
+// 'transform'.
+template <typename T>
+T GetYaw(const Rigid3<T>& transform) {
+  return GetYaw(transform.rotation());
+}
+
+template <typename T>
+Rigid2<T> Project2D(const Rigid3<T>& transform) {
+  return Rigid2<T>(transform.translation().template head<2>(),
+                   GetYaw(transform));
+}
+
+template <typename T>
+Eigen::Quaternion<T> AngleAxisVectorToRotationQuaternion(
+    const Eigen::Matrix<T, 3, 1>& angle_axis) {
+  T scale = T(0.5);
+  T w = T(1.);
+  constexpr double kCutoffAngle = 1e-8;  // We linearize below this angle.
+  if (angle_axis.squaredNorm() > kCutoffAngle) {
+    const T norm = angle_axis.norm();
+    scale = sin(norm / 2.) / norm;
+    w = cos(norm / 2.);
+  }
+  const Eigen::Matrix<T, 3, 1> quaternion_xyz = scale * angle_axis;
+  return Eigen::Quaternion<T>(w, quaternion_xyz.x(), quaternion_xyz.y(),
+                              quaternion_xyz.z());
+}
+
+template <typename T>
+Eigen::Matrix<T, 3, 1> RotationQuaternionToAngleAxisVector(
+    const Eigen::Quaternion<T>& quaternion) {
+  Eigen::Quaternion<T> normalized_quaternion = quaternion.normalized();
+  // We choose the quaternion with positive 'w', i.e., the one with a smaller
+  // angle that represents this orientation.
+  if (normalized_quaternion.w() < 0.) {
+    // Multiply by -1. http://eigen.tuxfamily.org/bz/show_bug.cgi?id=560
+    normalized_quaternion.w() = -1. * normalized_quaternion.w();
+    normalized_quaternion.x() = -1. * normalized_quaternion.x();
+    normalized_quaternion.y() = -1. * normalized_quaternion.y();
+    normalized_quaternion.z() = -1. * normalized_quaternion.z();
+  }
+  // We convert the normalized_quaternion into a vector along the rotation axis
+  // with length of the rotation angle.
+  const T angle =
+      2. * atan2(normalized_quaternion.vec().norm(), normalized_quaternion.w());
+  constexpr double kCutoffAngle = 1e-7;  // We linearize below this angle.
+  const T scale = angle < kCutoffAngle ? T(2.) : angle / sin(angle / 2.);
+  return Eigen::Matrix<T, 3, 1>(scale * normalized_quaternion.x(),
+                                scale * normalized_quaternion.y(),
+                                scale * normalized_quaternion.z());
+}
+
 using Rigid3d = Rigid3<double>;
 using Rigid3f = Rigid3<float>;
-
-// Converts (roll, pitch, yaw) to a unit length quaternion. Based on the URDF
-// specification http://wiki.ros.org/urdf/XML/joint.
-Eigen::Quaterniond RollPitchYaw(double roll, double pitch, double yaw);
-
 }  // namespace transform
 }  // namespace solex_robot::navigation::localization_2d

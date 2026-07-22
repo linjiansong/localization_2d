@@ -1,25 +1,30 @@
 // ////////////////////////////////////////////////////////////////////////////////
-// //                                                                            //
-// //            Copyright© 2026 Solex Robot, All Rights Reserved.               //
-// //                                                                            //
-// //  All users are hereby notified that the materials in the form of digital   //
-// //  information available from this software (content, designs, color         //
-// //  schemes, graphic styles, images, logo, text, and videos) comes protected  //
-// //  under International Copyright Laws. Therefore it should not be reproduced //
-// //  in any form digital or offline without prior written permission of        //
-// //  Solex Robot.                                                              //
-// //                                                                            //
-// //  Any unauthorized reprint or material usage (Solex Robot) either manually  //
-// //  or digitally, is strictly prohibited.                                     //
-// //                                                                            //
-// //  Any further unauthorized digital copying of this material via copying,    //
-// //  publication, reproduction or distribution of copyrighted works is an      //
-// //  infringement of the copyright owners' rights may be the subject of the    //
-// //  copyright of performers' protection under the Copyright Act. For such     //
-// //  illegal activities you will be strictly liable to Solox Robot for any and //
-// //  or all damages (including recovery of attorneys' fees) which may be       //
-// //  suffered and or incurred as a result of your infringement.                //
-// //                                                                            //
+// // //
+// //            Copyright© 2026 Solex Robot, All Rights Reserved. //
+// // //
+// //  All users are hereby notified that the materials in the form of digital
+// //
+// //  information available from this software (content, designs, color //
+// //  schemes, graphic styles, images, logo, text, and videos) comes protected
+// //
+// //  under International Copyright Laws. Therefore it should not be reproduced
+// //
+// //  in any form digital or offline without prior written permission of //
+// //  Solex Robot. //
+// // //
+// //  Any unauthorized reprint or material usage (Solex Robot) either manually
+// //
+// //  or digitally, is strictly prohibited. //
+// // //
+// //  Any further unauthorized digital copying of this material via copying, //
+// //  publication, reproduction or distribution of copyrighted works is an //
+// //  infringement of the copyright owners' rights may be the subject of the //
+// //  copyright of performers' protection under the Copyright Act. For such //
+// //  illegal activities you will be strictly liable to Solox Robot for any and
+// //
+// //  or all damages (including recovery of attorneys' fees) which may be //
+// //  suffered and or incurred as a result of your infringement. //
+// // //
 // ////////////////////////////////////////////////////////////////////////////////
 
 // #include "include/map_builder/icp_aligner.h"
@@ -100,7 +105,8 @@
 //     for (const Eigen::Vector3d& point : point_cloud) {
 //       const Eigen::Vector2d query_point = (*pose_estimate) * point.head(2);
 //       std::vector<size_t> indices(1);
-//       std::vector<double> sqr_distances(1, std::numeric_limits<double>::max());
+//       std::vector<double> sqr_distances(1,
+//       std::numeric_limits<double>::max());
 //       search_tree_->Query(query_point.data(), 1, indices.data(),
 //                           sqr_distances.data());
 //       const double distance = std::sqrt(sqr_distances[0]);
@@ -117,20 +123,21 @@
 //     *pose_estimate = ComputeTransformation2D(source_points, target_points);
 //     const transform::Rigid2d delta_transform =
 //         prev_estimate.inverse() * (*pose_estimate);
-//     const double delta_distance = delta_transform.translation().norm();  // meter
-//     const double delta_angle =
+//     const double delta_distance = delta_transform.translation().norm();  //
+//     meter const double delta_angle =
 //         delta_transform.rotation().angle() * kRadianToDegree;
 //     if (delta_distance < kICPMinDistance && delta_angle < kICPMinAngle) {
 //       // LOG(INFO) << "delta_distance = " << delta_distance
-//       //           << ", delta_angle = " << delta_angle << ", iter = " << iter;
-//       break;
+//       //           << ", delta_angle = " << delta_angle << ", iter = " <<
+//       iter; break;
 //     }
 
 //     prev_estimate = *pose_estimate;
 //   }
 // }
 
-// void ICPAligner::AddPointCloud(const std::vector<Eigen::Vector3d>& point_cloud) {
+// void ICPAligner::AddPointCloud(const std::vector<Eigen::Vector3d>&
+// point_cloud) {
 //   if (point_cloud_list_.size() > kMaxPointCloudSize) {
 //     point_cloud_list_.pop_front();
 //   }
@@ -152,48 +159,58 @@
 // }  // namespace solex_robot::navigation::localization_2d
 
 // //////////////////////////////////////////////////////////////////////////////
-// //                                                                            //
-// //            Copyright© 2026 Solex Robot, All Rights Reserved.               //
-// //                                                                            //
-// //  All users are hereby notified that the materials in the form of digital   //
-// //  information available from this software (content, designs, color         //
-// //  schemes, graphic styles, images, logo, text, and videos) comes protected  //
-// //  under International Copyright Laws. Therefore it should not be reproduced //
-// //  in any form digital or offline without prior written permission of        //
-// //  Solex Robot.                                                              //
-// //                                                                            //
-// //  Any unauthorized reprint or material usage (Solex Robot) either manually  //
-// //  or digitally, is strictly prohibited.                                     //
-// //                                                                            //
-// //  Any further unauthorized digital copying of this material via copying,    //
-// //  publication, reproduction or distribution of copyrighted works is an      //
-// //  infringement of the copyright owners' rights may be the subject of the    //
-// //  copyright of performers' protection under the Copyright Act. For such     //
-// //  illegal activities you will be strictly liable to Solex Robot for any and //
-// //  or all damages (including recovery of attorneys' fees) which may be       //
-// //  suffered and or incurred as a result of your infringement.                //
-// //                                                                            //
+// // //
+// //            Copyright© 2026 Solex Robot, All Rights Reserved. //
+// // //
+// //  All users are hereby notified that the materials in the form of digital
+// //
+// //  information available from this software (content, designs, color //
+// //  schemes, graphic styles, images, logo, text, and videos) comes protected
+// //
+// //  under International Copyright Laws. Therefore it should not be reproduced
+// //
+// //  in any form digital or offline without prior written permission of //
+// //  Solex Robot. //
+// // //
+// //  Any unauthorized reprint or material usage (Solex Robot) either manually
+// //
+// //  or digitally, is strictly prohibited. //
+// // //
+// //  Any further unauthorized digital copying of this material via copying, //
+// //  publication, reproduction or distribution of copyrighted works is an //
+// //  infringement of the copyright owners' rights may be the subject of the //
+// //  copyright of performers' protection under the Copyright Act. For such //
+// //  illegal activities you will be strictly liable to Solex Robot for any and
+// //
+// //  or all damages (including recovery of attorneys' fees) which may be //
+// //  suffered and or incurred as a result of your infringement. //
+// // //
 // //////////////////////////////////////////////////////////////////////////////
 
 #include "include/map_builder/icp_aligner.h"
+
+#include <opencv2/opencv.hpp>
 
 namespace solex_robot::navigation::localization_2d {
 
 namespace {
 constexpr double kRadianToDegree = 180.0 / M_PI;
 constexpr int kICPMaxIterations = 50;
-constexpr double kICPMaxInlierDistance = 1.0;  // 减小最大匹配距离，避免错误匹配拉偏角度 (原为10.0)
-constexpr double kICPMinInlierRatio = 0.3;     // 适当降低内点比例阈值
-constexpr double kICPMinDistance = 1.e-4;       // meter
-constexpr double kICPMinAngle = 0.01;          // degree
+constexpr double kICPMaxInlierDistance =
+    1.0;  // 减小最大匹配距离，避免错误匹配拉偏角度 (原为10.0)
+constexpr double kICPMinInlierRatio = 0.3;  // 适当降低内点比例阈值
+constexpr double kICPMinDistance = 1.e-4;   // meter
+constexpr double kICPMinAngle = 0.01;       // degree
 
-constexpr int kMaxPointCloudSize = 20;       // 增大子图历史帧数，由纯帧间匹配改为Scan-to-Submap
+constexpr int kMaxPointCloudSize =
+    20;  // 增大子图历史帧数，由纯帧间匹配改为Scan-to-Submap
 }  // namespace
 
 transform::Rigid2d ICPAligner::ComputeTransformation2D(
     const std::vector<Eigen::Vector2d>& source_points,
     const std::vector<Eigen::Vector2d>& target_points) const {
-  if (source_points.empty() || target_points.empty() || source_points.size() != target_points.size()) {
+  if (source_points.empty() || target_points.empty() ||
+      source_points.size() != target_points.size()) {
     return transform::Rigid2d::Identity();
   }
 
@@ -210,7 +227,7 @@ transform::Rigid2d ICPAligner::ComputeTransformation2D(
   }
   source_mean /= source_points.size();
   target_mean /= source_points.size();
-  
+
   // 用质心差作为平移的初始猜测，有助于加速收敛
   Eigen::Vector2d init_trans = target_mean - source_mean;
   translation_array[0] = init_trans.x();
@@ -225,8 +242,9 @@ transform::Rigid2d ICPAligner::ComputeTransformation2D(
   for (size_t i = 0; i < source_points.size(); ++i) {
     ceres::CostFunction* cost_function =
         ICP2DCostFunction::Create(source_points[i], target_points[i]);
-    
-    problem.AddResidualBlock(cost_function, loss_function, translation_array, &yaw_angle);
+
+    problem.AddResidualBlock(cost_function, loss_function, translation_array,
+                             &yaw_angle);
   }
 
   // 3. 配置 Ceres 求解器参数
@@ -251,7 +269,8 @@ transform::Rigid2d ICPAligner::ComputeTransformation2D(
 // transform::Rigid2d ICPAligner::ComputeTransformation2D(
 //     const std::vector<Eigen::Vector2d>& source_points,
 //     const std::vector<Eigen::Vector2d>& target_points) const {
-//   if (source_points.empty() || target_points.empty() || source_points.size() != target_points.size()) {
+//   if (source_points.empty() || target_points.empty() || source_points.size()
+//   != target_points.size()) {
 //     return transform::Rigid2d::Identity();
 //   }
 
@@ -322,10 +341,10 @@ void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
       const Eigen::Vector2d query_point = current_pose * point.head(2);
       std::vector<size_t> indices(1);
       std::vector<double> sqr_distances(1, std::numeric_limits<double>::max());
-      
+
       search_tree_->Query(query_point.data(), 1, indices.data(),
                           sqr_distances.data());
-      
+
       const double distance = std::sqrt(sqr_distances[0]);
       if (distance < kICPMaxInlierDistance) {
         // source 记录局部原始点，target 记录对应全局地图中的点
@@ -339,12 +358,14 @@ void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
     }
 
     // 计算当前局部的增量变换 (Delta Transform)
-    transform::Rigid2d delta_transform = ComputeTransformation2D(source_points, target_points);
+    transform::Rigid2d delta_transform =
+        ComputeTransformation2D(source_points, target_points);
 
     // 累加到整体估计位姿上: pose = pose * delta
     current_pose = delta_transform * current_pose;
 
-    const double delta_distance = delta_transform.translation().norm();  // meter
+    const double delta_distance =
+        delta_transform.translation().norm();  // meter
     const double delta_angle =
         std::abs(delta_transform.rotation().angle() * kRadianToDegree);
 
@@ -358,10 +379,86 @@ void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
     // 可选：根据最终匹配上的内点比例计算一个简单的匹配得分
     *score = static_cast<double>(source_points.size()) / point_cloud.size();
   }
+
+  {
+    double max_x = std::numeric_limits<double>::lowest();
+    double max_y = std::numeric_limits<double>::lowest();
+    double min_x = std::numeric_limits<double>::max();
+    double min_y = std::numeric_limits<double>::max();
+
+    for (const auto& cloud : point_cloud_list_) {
+      for (const Eigen::Vector3d& point : cloud) {
+        max_x = std::max(point.x(), max_x);
+        max_y = std::max(point.y(), max_y);
+        min_x = std::min(point.x(), min_x);
+        min_y = std::min(point.y(), min_y);
+      }
+    }
+
+    for (const Eigen::Vector3d& point : point_cloud) {
+      const Eigen::Vector2d query_point = initial_pose * point.head(2);
+      max_x = std::max(query_point.x(), max_x);
+      max_y = std::max(query_point.y(), max_y);
+      min_x = std::min(query_point.x(), min_x);
+      min_y = std::min(query_point.y(), min_y);
+    }
+
+    for (const Eigen::Vector3d& point : point_cloud) {
+      const Eigen::Vector2d query_point = (*pose_estimate) * point.head(2);
+      max_x = std::max(query_point.x(), max_x);
+      max_y = std::max(query_point.y(), max_y);
+      min_x = std::min(query_point.x(), min_x);
+      min_y = std::min(query_point.y(), min_y);
+    }
+
+    const double resolution = 0.02;
+
+    const int width = (max_x - min_x) / resolution;
+    const int height = (max_y - min_y) / resolution;
+
+    cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
+    for (const auto& cloud : point_cloud_list_) {
+      for (const Eigen::Vector3d& point : cloud) {
+        int x_index = std::clamp(
+            static_cast<int>((point.x() - min_x) / resolution), 0, width - 1);
+        int y_index = std::clamp(
+            static_cast<int>((point.y() - min_y) / resolution), 0, height - 1);
+        image.at<cv::Vec3b>(y_index, x_index) = cv::Vec3b(0, 0, 255);
+      }
+    }
+
+    for (const Eigen::Vector3d& point : point_cloud) {
+      const Eigen::Vector2d query_point = initial_pose * point.head(2);
+      int x_index =
+          std::clamp(static_cast<int>((query_point.x() - min_x) / resolution),
+                     0, width - 1);
+      int y_index =
+          std::clamp(static_cast<int>((query_point.y() - min_y) / resolution),
+                     0, height - 1);
+      image.at<cv::Vec3b>(y_index, x_index) = cv::Vec3b(0, 255, 0);
+    }
+
+    for (const Eigen::Vector3d& point : point_cloud) {
+      const Eigen::Vector2d query_point = (*pose_estimate) * point.head(2);
+      int x_index =
+          std::clamp(static_cast<int>((query_point.x() - min_x) / resolution),
+                     0, width - 1);
+      int y_index =
+          std::clamp(static_cast<int>((query_point.y() - min_y) / resolution),
+                     0, height - 1);
+      image.at<cv::Vec3b>(y_index, x_index) = cv::Vec3b(255, 0, 0);
+    }
+
+    cv::imwrite("/home/linjs/图片/match/match_" + std::to_string(count_++) + ".png",
+                image);
+  }
 }
 
-void ICPAligner::AddPointCloud(const std::vector<Eigen::Vector3d>& point_cloud) {
-  if (point_cloud.empty()) return;
+void ICPAligner::AddPointCloud(
+    const std::vector<Eigen::Vector3d>& point_cloud) {
+  if (point_cloud.empty()) {
+    return;
+  }
 
   if (point_cloud_list_.size() >= kMaxPointCloudSize) {
     point_cloud_list_.pop_front();

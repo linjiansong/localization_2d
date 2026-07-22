@@ -28,45 +28,24 @@
 #include <memory>
 #include <vector>
 
+#include "common/rigid_transform.h"
+
 namespace solex_robot::navigation::localization_2d {
+namespace sensor {
 
-enum class LocalizationStatus {
-  kUnknown = 0,
-  kInitialization = 1,
-  kFailed = 2,
-  kSuccess = 3,
-  kRelocalization = 4,
-  kGlobalLocalization = 5
+struct ImuData {
+  double time = 0.0;
+  transform::Rigid3d pose;
+  Eigen::Vector3d angular_velocity;
+  Eigen::Vector3d linear_acceleration;
+
 };
 
-struct TimedPointCloud {
-  Eigen::Vector3d position;
-  double timestamp = 0.0;
-};
-using TimedPointCloudPtr = std::shared_ptr<TimedPointCloud>;
-
-struct PointCloud {
-  std::vector<TimedPointCloudPtr> points;
-  double timestamp = 0.0;
+struct OdometryData {
+  double time = 0.0;
+  transform::Rigid3d pose;
 };
 
-struct State {
-  Eigen::Vector3d position;
-  Eigen::Vector3d rotation;  // so3
-  Eigen::Vector3d velocity;
-};
-
-struct Keyframe {
-  double timestamp = 0.0;
-  Eigen::Matrix4d global_pose;     // scan to global map
-  Eigen::Matrix4d local_pose;      // scan to submap
-  Eigen::Matrix4d optimized_pose;  // optimized_pose
-  double global_pose_score = 0.0;
-  double local_pose_score = 0.0;
-  State state;
-};
-
-using KeyframePtr = std::shared_ptr<Keyframe>;
-using PosePtr = std::shared_ptr<double[]>;
+}  // namespace sensor
 
 }  // namespace solex_robot::navigation::localization_2d
