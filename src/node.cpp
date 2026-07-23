@@ -134,9 +134,8 @@ void LocalizationNode::HandleScanMessage(
     const Eigen::AngleAxisd rotation(angle, Eigen::Vector3d::UnitZ());
     const Eigen::AngleAxisd rotation_x(M_PI, Eigen::Vector3d::UnitX());
 
-    // const Eigen::Vector3d position =
-    //     rotation_x * rotation * (Eigen::Vector3d(range, 0.0, 0.0));
-    const Eigen::Vector3d position = rotation * (Eigen::Vector3d(range, 0.0, 0.0));
+    const Eigen::Vector3d position =
+        rotation_x * rotation * (Eigen::Vector3d(range, 0.0, 0.0));
 
     const Eigen::Vector3d transformed_position =
         Eigen::Vector3d(position.x(), position.y(), position.z());
@@ -147,6 +146,7 @@ void LocalizationNode::HandleScanMessage(
     point_cloud.points.emplace_back(timed_point);
   }
 
+  CHECK_NOTNULL(locator_);
   if (!point_cloud.points.empty()) {
     locator_->AddPointCloud(point_cloud);
   }
@@ -207,7 +207,7 @@ void LocalizationNode::HandleGridMapMessage(
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
       const float distance = distance_field[y * width + x];
-      const float probability = std::exp(-(distance * distance) / 9.0);
+      const float probability = std::exp(-(distance * distance) / 1.0);
       const float cost = std::clamp(1.f - probability, kMinCorrespondenceCost,
                                     kMaxCorrespondenceCost);
       const float value = (cost - kMinCorrespondenceCost) / scale + 1.0f;
@@ -281,8 +281,9 @@ void LocalizationNode::PublishPointCloud() {
 
 void LocalizationNode::PublishRobotPose() {
   Eigen::Matrix4d delta_transform = Eigen::Matrix4d::Identity();
+  delta_transform.block<3, 3>(0, 0) =
+      Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()).toRotationMatrix();
   const Eigen::Matrix4d curr_pose = locator_->curr_pose() * delta_transform;
-
 
   geometry_msgs::msg::PoseStamped pose_msg;
   pose_msg.header.stamp = this->now();
@@ -314,7 +315,7 @@ void LocalizationNode::PublishTransform() {
 
   tf_info.header.frame_id = "map";
   tf_info.child_frame_id = "laser";
-  
+
   tf_info.transform = tf2::eigenToTransform(affine).transform;
 
   tf_broadcaster_->sendTransform(tf_info);

@@ -110,7 +110,7 @@ std::pair<Eigen::Matrix4d, float> Localization::MatchGlobalMap(
   real_time_correlative_scan_matcher_->Match(
       ToRigid2d(initial_pose), points, *probability_grid_,
       &real_time_pose_estimate, &real_time_score);
-  LOG(INFO) << "++++++++++++++++++++++++++ real time = " << real_time_score;
+  // LOG(INFO) << "++++++++++++++++++++++++++ real time = " << real_time_score;
 
   float ceres_match_score = real_time_score;
   transform::Rigid2d ceres_pose_estimate = real_time_pose_estimate;
@@ -119,7 +119,34 @@ std::pair<Eigen::Matrix4d, float> Localization::MatchGlobalMap(
   // ceres_scan_matcher_->Match(real_time_pose_estimate, points,
   // probability_grid_,
   //                            &ceres_pose_estimate, &ceres_match_score);
-  LOG(INFO) << "-------------------------- ceres = " << ceres_match_score;
+  // LOG(INFO) << "-------------------------- ceres = " << ceres_match_score;
+
+  // {
+  //   const MapLimits& map_limits = probability_grid_->map_limits();
+  //   const int width = map_limits.cell_limits().num_x_cells;
+  //   const int height = map_limits.cell_limits().num_y_cells;
+
+  //   cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
+  //   for (int y = 0; y < height; ++y) {
+  //     for (int x = 0; x < width; ++x) {
+  //       const Eigen::Array2i index(x, y);
+  //       const double probability = probability_grid_->GetProbability(index);
+  //       const uint8_t value = 255 * (1.0 - probability);
+  //       image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
+  //     }
+  //   }
+
+  //   for (const Eigen::Vector3d& point : points) {
+  //     const Eigen::Vector2d new_point = ceres_pose_estimate * point.head(2);
+  //     const Eigen::Array2i index =
+  //         map_limits.GetCellIndex(new_point.cast<float>());
+  //     image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 0, 255);
+  //   }
+
+  //   cv::imwrite("/home/linjs/图片/global_match/match_" +
+  //                   std::to_string(count_++) + ".png",
+  //               image);
+  // }
 
   // return std::make_pair(global_pose, match_score);
   return std::make_pair(ToMatrix4d(ceres_pose_estimate), ceres_match_score);
@@ -263,15 +290,17 @@ void Localization::Track(const PointCloud& point_cloud) {
           pose_extrapolator_->ExtrapolatePose(point_cloud.timestamp)),
       &local_pose_estimate, &local_pose_score, &is_keyframe);
 
-  // local_map_builder_->AddPointCloud(ConvertPoint(point_cloud), last_local_pose_,
+  // local_map_builder_->AddPointCloud(ConvertPoint(point_cloud),
+  // last_local_pose_,
   //                                   &local_pose_estimate, &local_pose_score,
   //                                   &is_keyframe);
 
   transform::Rigid2d delta_pose =
       last_local_pose_.inverse() * local_pose_estimate;
-  LOG(INFO) << count_++ << ". delta = " << delta_pose.translation().x() << ", "
-            << delta_pose.translation().x() << ", "
-            << delta_pose.rotation().angle() * 180 / M_PI;
+  // LOG(INFO) << count_++ << ". delta = " << delta_pose.translation().x() << ",
+  // "
+  //           << delta_pose.translation().x() << ", "
+  //           << delta_pose.rotation().angle() * 180 / M_PI;
   last_local_pose_ = local_pose_estimate;
   curr_pose_ = ToMatrix4d(local_pose_estimate);
 
@@ -283,29 +312,29 @@ void Localization::Track(const PointCloud& point_cloud) {
           Eigen::AngleAxisd(local_pose_estimate.rotation().angle(),
                             Eigen::Vector3d::UnitZ())));
 
-  {
-    static auto debug_node = rclcpp::Node::make_shared("submap_debug_node");
-    static auto submap_pub =
-        debug_node->create_publisher<sensor_msgs::msg::PointCloud2>(
-            "map_points", 10);
-    auto convert_to_ros = [](const std::vector<Eigen::Vector3d>& points) {
-      pcl::PointCloud<pcl::PointXYZ> cloud;
-      cloud.reserve(points.size());
-      for (const Eigen::Vector3d& point : points) {
-        cloud.push_back(pcl::PointXYZ(point.x(), point.y(), point.z()));
-      }
+  // {
+  //   static auto debug_node = rclcpp::Node::make_shared("submap_debug_node");
+  //   static auto submap_pub =
+  //       debug_node->create_publisher<sensor_msgs::msg::PointCloud2>(
+  //           "map_points", 10);
+  //   auto convert_to_ros = [](const std::vector<Eigen::Vector3d>& points) {
+  //     pcl::PointCloud<pcl::PointXYZ> cloud;
+  //     cloud.reserve(points.size());
+  //     for (const Eigen::Vector3d& point : points) {
+  //       cloud.push_back(pcl::PointXYZ(point.x(), point.y(), point.z()));
+  //     }
 
-      sensor_msgs::msg::PointCloud2 msg;
-      pcl::toROSMsg(cloud, msg);
-      msg.header.stamp = debug_node->now();
-      msg.header.frame_id = "map";  // 必须和你的 Rviz Global Frame 保持一致
-      return msg;
-    };
+  //     sensor_msgs::msg::PointCloud2 msg;
+  //     pcl::toROSMsg(cloud, msg);
+  //     msg.header.stamp = debug_node->now();
+  //     msg.header.frame_id = "map";  // 必须和你的 Rviz Global Frame 保持一致
+  //     return msg;
+  //   };
 
-    submap_pub->publish(
-        convert_to_ros(local_map_builder_->map_points()));  // 地图上的匹配点
-  }
-  return;
+  //   submap_pub->publish(
+  //       convert_to_ros(local_map_builder_->map_points()));  // 地图上的匹配点
+  // }
+  // return;
 
   if (!is_keyframe) {
     return;
@@ -366,6 +395,10 @@ void Localization::DistordPointCloud(const PointCloud& point_cloud) {
 }
 
 void Localization::AddPointCloud(const PointCloud& point_cloud) {
+  // std::unique_lock<std::mutex> lock(keyframe_buffer_mutex_);
+  // GlobalLocalization(point_cloud);
+  // return;
+
   if (pose_extrapolator_ == nullptr) {
     pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
     pose_extrapolator_->AddPose(point_cloud.timestamp,
@@ -374,8 +407,8 @@ void Localization::AddPointCloud(const PointCloud& point_cloud) {
 
   // DistordPointCloud(point_cloud);
 
-  Track(point_cloud);
-  return;
+  // Track(point_cloud);
+  // return;
 
   switch (localization_status_) {
     case LocalizationStatus::kInitialization:
@@ -398,16 +431,17 @@ void Localization::AddPointCloud(const PointCloud& point_cloud) {
       break;
   }
 
-  if (keyframe_interval_ >= kOptimizeKeyframeInterval) {
-    const auto t0 = std::chrono::steady_clock::now();
-    GlobalOptimize();
-    keyframe_interval_ = 0;
-    const auto t1 = std::chrono::steady_clock::now();
-    LOG(INFO) << "GlobalOptimize takes "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0)
-                     .count()
-              << "ms";
-  }
+  // if (keyframe_interval_ >= kOptimizeKeyframeInterval) {
+  //   const auto t0 = std::chrono::steady_clock::now();
+  //   GlobalOptimize();
+  //   keyframe_interval_ = 0;
+  //   const auto t1 = std::chrono::steady_clock::now();
+  //   LOG(INFO) << "GlobalOptimize takes "
+  //             << std::chrono::duration_cast<std::chrono::milliseconds>(t1 -
+  //             t0)
+  //                    .count()
+  //             << "ms";
+  // }
 
   if (keyframe_buffer_.size() > kMaxKeyframeBufferLength) {
     keyframe_buffer_.pop_front();
@@ -445,6 +479,7 @@ void Localization::AddInitialPose(const Eigen::Matrix4d& initial_pose) {
   localization_status_ = LocalizationStatus::kGlobalLocalization;
 
   local_map_builder_ = std::make_shared<LocalMapBuilder>();
+  pose_extrapolator_ = nullptr;
 }
 
 void Localization::AddImuData() {}

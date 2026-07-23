@@ -317,9 +317,13 @@ transform::Rigid2d ICPAligner::ComputeTransformation2D(
 void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
                        const transform::Rigid2d& initial_pose,
                        transform::Rigid2d* pose_estimate, float* score) {
-  if (point_cloud.empty() || search_tree_ == nullptr) {
+  CHECK_NOTNULL(pose_estimate);
+  CHECK_NOTNULL(score);
+  CHECK_NOTNULL(search_tree_);
+  
+  if (point_cloud.empty()) {
     *pose_estimate = initial_pose;
-    if (score) *score = 0.0;
+    *score = 0.0;
     return;
   }
 
@@ -335,7 +339,6 @@ void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
 
     source_points.reserve(point_cloud.size());
     target_points.reserve(point_cloud.size());
-
     // 核心修改：利用当前的 pose_estimate 将雷达点投影到全局坐标系下，再找最近邻
     for (const Eigen::Vector3d& point : point_cloud) {
       const Eigen::Vector2d query_point = current_pose * point.head(2);
@@ -344,7 +347,6 @@ void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
 
       search_tree_->Query(query_point.data(), 1, indices.data(),
                           sqr_distances.data());
-
       const double distance = std::sqrt(sqr_distances[0]);
       if (distance < kICPMaxInlierDistance) {
         // source 记录局部原始点，target 记录对应全局地图中的点
@@ -380,78 +382,85 @@ void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
     *score = static_cast<double>(source_points.size()) / point_cloud.size();
   }
 
-  {
-    double max_x = std::numeric_limits<double>::lowest();
-    double max_y = std::numeric_limits<double>::lowest();
-    double min_x = std::numeric_limits<double>::max();
-    double min_y = std::numeric_limits<double>::max();
+  // {
+  //   double max_x = std::numeric_limits<double>::lowest();
+  //   double max_y = std::numeric_limits<double>::lowest();
+  //   double min_x = std::numeric_limits<double>::max();
+  //   double min_y = std::numeric_limits<double>::max();
 
-    for (const auto& cloud : point_cloud_list_) {
-      for (const Eigen::Vector3d& point : cloud) {
-        max_x = std::max(point.x(), max_x);
-        max_y = std::max(point.y(), max_y);
-        min_x = std::min(point.x(), min_x);
-        min_y = std::min(point.y(), min_y);
-      }
-    }
+  //   for (const auto& cloud : point_cloud_list_) {
+  //     for (const Eigen::Vector3d& point : cloud) {
+  //       max_x = std::max(point.x(), max_x);
+  //       max_y = std::max(point.y(), max_y);
+  //       min_x = std::min(point.x(), min_x);
+  //       min_y = std::min(point.y(), min_y);
+  //     }
+  //   }
 
-    for (const Eigen::Vector3d& point : point_cloud) {
-      const Eigen::Vector2d query_point = initial_pose * point.head(2);
-      max_x = std::max(query_point.x(), max_x);
-      max_y = std::max(query_point.y(), max_y);
-      min_x = std::min(query_point.x(), min_x);
-      min_y = std::min(query_point.y(), min_y);
-    }
+  //   for (const Eigen::Vector3d& point : point_cloud) {
+  //     const Eigen::Vector2d query_point = initial_pose * point.head(2);
+  //     max_x = std::max(query_point.x(), max_x);
+  //     max_y = std::max(query_point.y(), max_y);
+  //     min_x = std::min(query_point.x(), min_x);
+  //     min_y = std::min(query_point.y(), min_y);
+  //   }
 
-    for (const Eigen::Vector3d& point : point_cloud) {
-      const Eigen::Vector2d query_point = (*pose_estimate) * point.head(2);
-      max_x = std::max(query_point.x(), max_x);
-      max_y = std::max(query_point.y(), max_y);
-      min_x = std::min(query_point.x(), min_x);
-      min_y = std::min(query_point.y(), min_y);
-    }
+  //   for (const Eigen::Vector3d& point : point_cloud) {
+  //     const Eigen::Vector2d query_point = (*pose_estimate) * point.head(2);
+  //     max_x = std::max(query_point.x(), max_x);
+  //     max_y = std::max(query_point.y(), max_y);
+  //     min_x = std::min(query_point.x(), min_x);
+  //     min_y = std::min(query_point.y(), min_y);
+  //   }
 
-    const double resolution = 0.02;
+  //   const double resolution = 0.02;
 
-    const int width = (max_x - min_x) / resolution;
-    const int height = (max_y - min_y) / resolution;
+  //   const int width = (max_x - min_x) / resolution;
+  //   const int height = (max_y - min_y) / resolution;
 
-    cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
-    for (const auto& cloud : point_cloud_list_) {
-      for (const Eigen::Vector3d& point : cloud) {
-        int x_index = std::clamp(
-            static_cast<int>((point.x() - min_x) / resolution), 0, width - 1);
-        int y_index = std::clamp(
-            static_cast<int>((point.y() - min_y) / resolution), 0, height - 1);
-        image.at<cv::Vec3b>(y_index, x_index) = cv::Vec3b(0, 0, 255);
-      }
-    }
+  //   cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
+  //   for (const auto& cloud : point_cloud_list_) {
+  //     for (const Eigen::Vector3d& point : cloud) {
+  //       int x_index = std::clamp(
+  //           static_cast<int>((point.x() - min_x) / resolution), 0, width -
+  //           1);
+  //       int y_index = std::clamp(
+  //           static_cast<int>((point.y() - min_y) / resolution), 0, height -
+  //           1);
+  //       image.at<cv::Vec3b>(y_index, x_index) = cv::Vec3b(0, 0, 255);
+  //     }
+  //   }
 
-    for (const Eigen::Vector3d& point : point_cloud) {
-      const Eigen::Vector2d query_point = initial_pose * point.head(2);
-      int x_index =
-          std::clamp(static_cast<int>((query_point.x() - min_x) / resolution),
-                     0, width - 1);
-      int y_index =
-          std::clamp(static_cast<int>((query_point.y() - min_y) / resolution),
-                     0, height - 1);
-      image.at<cv::Vec3b>(y_index, x_index) = cv::Vec3b(0, 255, 0);
-    }
+  //   for (const Eigen::Vector3d& point : point_cloud) {
+  //     const Eigen::Vector2d query_point = initial_pose * point.head(2);
+  //     int x_index =
+  //         std::clamp(static_cast<int>((query_point.x() - min_x) /
+  //         resolution),
+  //                    0, width - 1);
+  //     int y_index =
+  //         std::clamp(static_cast<int>((query_point.y() - min_y) /
+  //         resolution),
+  //                    0, height - 1);
+  //     image.at<cv::Vec3b>(y_index, x_index) = cv::Vec3b(0, 255, 0);
+  //   }
 
-    for (const Eigen::Vector3d& point : point_cloud) {
-      const Eigen::Vector2d query_point = (*pose_estimate) * point.head(2);
-      int x_index =
-          std::clamp(static_cast<int>((query_point.x() - min_x) / resolution),
-                     0, width - 1);
-      int y_index =
-          std::clamp(static_cast<int>((query_point.y() - min_y) / resolution),
-                     0, height - 1);
-      image.at<cv::Vec3b>(y_index, x_index) = cv::Vec3b(255, 0, 0);
-    }
+  //   for (const Eigen::Vector3d& point : point_cloud) {
+  //     const Eigen::Vector2d query_point = (*pose_estimate) * point.head(2);
+  //     int x_index =
+  //         std::clamp(static_cast<int>((query_point.x() - min_x) /
+  //         resolution),
+  //                    0, width - 1);
+  //     int y_index =
+  //         std::clamp(static_cast<int>((query_point.y() - min_y) /
+  //         resolution),
+  //                    0, height - 1);
+  //     image.at<cv::Vec3b>(y_index, x_index) = cv::Vec3b(255, 0, 0);
+  //   }
 
-    cv::imwrite("/home/linjs/图片/match/match_" + std::to_string(count_++) + ".png",
-                image);
-  }
+  //   cv::imwrite("/home/linjs/图片/match/match_" + std::to_string(count_++) +
+  //   ".png",
+  //               image);
+  // }
 }
 
 void ICPAligner::AddPointCloud(
@@ -476,6 +485,10 @@ void ICPAligner::AddPointCloud(
 
   for (const auto& cloud : point_cloud_list_) {
     for (const Eigen::Vector3d& point : cloud) {
+      if (!point.allFinite()) {
+        LOG(INFO) << "point = " << point.transpose(); 
+      }
+
       points_2d.emplace_back(point.head(2));
     }
   }

@@ -29,7 +29,7 @@ namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr double kRadianToDegree = 180.0 / M_PI;
 constexpr double kKeyframeMinDistance = 0.2;  // meter
-constexpr double kKeyframeMinAngle = 5.0;     // degree
+constexpr double kKeyframeMinAngle = 2.0;     // degree
 }  // namespace
 
 bool LocalMapBuilder::IsKeyframe(const transform::Rigid2d& current_pose) {

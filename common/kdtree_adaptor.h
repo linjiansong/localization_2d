@@ -57,7 +57,7 @@ class KDTreeVectorOfEigenAdaptor {
     CHECK(!mat.empty() && mat[0].size() != 0);
     const size_t dims = mat[0].size();
     CHECK((Dimension > 0 && static_cast<int>(dims) == Dimension) ||
-           (Dimension == -1));
+          (Dimension == -1));
     index_ = std::make_unique<KDTreeIndexType>(
         static_cast<int>(dims), *this /* adaptor */,
         nanoflann::KDTreeSingleIndexAdaptorParams(leaf_max_size));
@@ -93,6 +93,10 @@ class KDTreeVectorOfEigenAdaptor {
   }
 
   const typename VectorOfEigenType::value_type& get_data(size_t index) const {
+    // if (index >= data_.size()) {
+    //   std::cout << "index = " << index << ", data_ = " << data_.size()
+    //             << std::endl;
+    // }
     CHECK(index < data_.size());
     return data_[index];
   }
