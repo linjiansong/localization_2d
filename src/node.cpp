@@ -90,6 +90,9 @@ LocalizationNode::LocalizationNode() : rclcpp::Node("sensor_subscriber_node") {
             this->HandleGridMapMessage(msg);
           });
 
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
   point_cloud_publisher_ =
       this->create_publisher<sensor_msgs::msg::PointCloud2>("points_raw", 10);
 
@@ -113,6 +116,30 @@ LocalizationNode::LocalizationNode() : rclcpp::Node("sensor_subscriber_node") {
 
 void LocalizationNode::HandleScanMessage(
     const sensor_msgs::msg::LaserScan::SharedPtr msg) {
+  static Eigen::Isometry3d laser_to_base_transform =
+      Eigen::Isometry3d::Identity();
+  static bool tf_initialized = false;
+
+  if (!tf_initialized) {
+    try {
+      geometry_msgs::msg::TransformStamped transform_stamped;
+      transform_stamped = tf_buffer_->lookupTransform(
+          "base_link", msg->header.frame_id, tf2::TimePointZero,
+          tf2::durationFromSec(1.0));
+
+      laser_to_base_transform =
+          tf2::transformToEigen(transform_stamped.transform);
+      tf_initialized = true;
+      LOG(INFO) << "Successfully obtained laser to base_link TF!";
+      LOG(INFO) << "laser_to_base_transform matrix =\n"
+                << laser_to_base_transform.matrix();
+    } catch (tf2::TransformException& ex) {
+      LOG(ERROR) << "Could not get transform from " << msg->header.frame_id
+                 << "to base_link";
+      return;  // 如果还没获取到TF，暂时跳过该帧
+    }
+  }
+
   const double start_time = rclcpp::Time(msg->header.stamp).seconds();
   PointCloud point_cloud;
   point_cloud.timestamp = start_time;
@@ -132,16 +159,11 @@ void LocalizationNode::HandleScanMessage(
 
     // 转换为极坐标
     const Eigen::AngleAxisd rotation(angle, Eigen::Vector3d::UnitZ());
-    const Eigen::AngleAxisd rotation_x(M_PI, Eigen::Vector3d::UnitX());
-
     const Eigen::Vector3d position =
-        rotation_x * rotation * (Eigen::Vector3d(range, 0.0, 0.0));
-
-    const Eigen::Vector3d transformed_position =
-        Eigen::Vector3d(position.x(), position.y(), position.z());
+        laser_to_base_transform * rotation * (Eigen::Vector3d(range, 0.0, 0.0));
 
     TimedPointCloudPtr timed_point = std::make_shared<TimedPointCloud>();
-    timed_point->position = transformed_position;
+    timed_point->position = position;
     timed_point->timestamp = start_time + time_offset;
     point_cloud.points.emplace_back(timed_point);
   }
@@ -305,20 +327,26 @@ void LocalizationNode::PublishRobotPose() {
 }
 
 void LocalizationNode::PublishTransform() {
-  Eigen::Matrix4d delta_transform = Eigen::Matrix4d::Identity();
-  delta_transform.block<3, 3>(0, 0) =
-      Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()).toRotationMatrix();
-  const Eigen::Matrix4d curr_pose = locator_->curr_pose() * delta_transform;
-  const Eigen::Affine3d affine(curr_pose);
-  geometry_msgs::msg::TransformStamped tf_info;
-  tf_info.header.stamp = this->now();
+  const rclcpp::Time current_time = this->now();
 
-  tf_info.header.frame_id = "map";
-  tf_info.child_frame_id = "laser";
+  // ==================== map -> odom ====================
+  geometry_msgs::msg::TransformStamped map_to_odom;
+  map_to_odom.header.stamp = current_time;
+  map_to_odom.header.frame_id = "map";
+  map_to_odom.child_frame_id = "odom";
+  map_to_odom.transform =
+      tf2::eigenToTransform(Eigen::Affine3d::Identity()).transform;
+  tf_broadcaster_->sendTransform(map_to_odom);
 
-  tf_info.transform = tf2::eigenToTransform(affine).transform;
-
-  tf_broadcaster_->sendTransform(tf_info);
+  // ================= odom -> base_link =================
+  geometry_msgs::msg::TransformStamped odom_to_base;
+  odom_to_base.header.stamp = current_time;
+  odom_to_base.header.frame_id = "odom";
+  odom_to_base.child_frame_id = "base_link";
+  Eigen::Matrix4d odom_pose = Eigen::Matrix4d::Identity();
+  odom_to_base.transform =
+      tf2::eigenToTransform(Eigen::Affine3d(locator_->curr_pose())).transform;
+  tf_broadcaster_->sendTransform(odom_to_base);
 }
 
 }  // namespace solex_robot::navigation::localization_2d

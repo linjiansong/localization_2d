@@ -24,6 +24,9 @@
 
 #pragma once
 
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <memory>
 #include <nav_msgs/msg/odometry.hpp>
@@ -65,6 +68,9 @@ class LocalizationNode : public rclcpp::Node {
       initial_pose_subscriber_;
   rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr
       grid_map_subscriber_;
+
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
   // publisher
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
