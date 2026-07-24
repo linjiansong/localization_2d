@@ -58,7 +58,8 @@ class Localization {
   const std::deque<KeyframePtr>& keyframe_buffer() const {
     return keyframe_buffer_;
   }
-  const Eigen::Matrix4d& curr_pose() const { return curr_pose_; }
+
+  const Eigen::Matrix4d GetLatestPose() const;
 
  private:
   void DistordPointCloud(const sensor::LaserData& laser_data);

@@ -155,7 +155,6 @@ void RealTimeCorrelativeScanMatcher2D::Match(
   const SearchParameters search_parameters(
       options_.linear_search_window, options_.angular_search_window,
       rotated_point_cloud, probability_grid.map_limits().resolution());
-
   const std::vector<std::vector<Eigen::Vector3d>> rotated_scans =
       GenerateRotatedScans(rotated_point_cloud, search_parameters);
   const std::vector<DiscreteScan2D> discrete_scans = DiscretizeScans(

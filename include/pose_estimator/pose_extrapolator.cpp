@@ -108,6 +108,7 @@ void PoseExtrapolator::AddOdometryData(
   if (odometry_data_.size() < 2) {
     return;
   }
+
   // TODO(whess): Improve by using more than just the last two odometry
   // poses.
   // Compute extrapolation in the tracking frame.
@@ -124,6 +125,7 @@ void PoseExtrapolator::AddOdometryData(
   if (timed_pose_queue_.empty()) {
     return;
   }
+
   const Eigen::Vector3d
       linear_velocity_in_tracking_frame_at_newest_odometry_time =
           odometry_pose_delta.translation() / odometry_time_delta;
@@ -227,7 +229,8 @@ void PoseExtrapolator::AdvanceImuTracker(const double timestamp,
       });
   while (imu_iter != imu_data_.end() && imu_iter->timestamp() < timestamp) {
     imu_tracker->Advance(imu_iter->timestamp());
-    imu_tracker->AddImuLinearAccelerationObservation(imu_iter->linear_acceleration());
+    imu_tracker->AddImuLinearAccelerationObservation(
+        imu_iter->linear_acceleration());
     imu_tracker->AddImuAngularVelocityObservation(imu_iter->angular_velocity());
     ++imu_iter;
   }

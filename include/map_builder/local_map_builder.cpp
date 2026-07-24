@@ -24,6 +24,8 @@
 
 #include "include/map_builder/local_map_builder.h"
 
+#include <glog/logging.h>
+
 namespace solex_robot::navigation::localization_2d {
 
 namespace {
@@ -67,6 +69,11 @@ void LocalMapBuilder::AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
   // ndt_aligner_->Align(point_cloud, initial_pose, pose_estimate, score);
   icp_aligner_->Align(point_cloud, initial_pose, pose_estimate, score);
   estimated_poses_.emplace_back(*pose_estimate);
+
+  transform::Rigid2d delta_pose = initial_pose.inverse() * (*pose_estimate);
+  // LOG(INFO) << "delta = " << delta_pose.translation().x() << ", "
+  //           << delta_pose.translation().x() << ", "
+  //           << delta_pose.rotation().angle() * 180 / M_PI;
 
   if (!IsKeyframe(*pose_estimate)) {
     *is_keyframe = false;

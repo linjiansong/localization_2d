@@ -121,6 +121,7 @@ struct SearchParameters {
 
     const int num_linear_perturbations =
         std::ceil(linear_search_window / resolution);
+
     linear_bounds.reserve(num_scans);
     for (int i = 0; i != num_scans; ++i) {
       linear_bounds.push_back(

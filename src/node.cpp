@@ -176,7 +176,21 @@ void LocalizationNode::HandleScanMessage(
 }
 
 void LocalizationNode::HandleOdometryMessage(
-    const nav_msgs::msg::Odometry::SharedPtr msg) {}
+    const nav_msgs::msg::Odometry::SharedPtr msg) {
+  CHECK_NOTNULL(msg);
+
+  const transform::Rigid3d eigen_pose = transform::Rigid3d(
+      Eigen::Vector3d(msg->pose.pose.position.x, msg->pose.pose.position.y,
+                      msg->pose.pose.position.z),
+      Eigen::Quaterniond(
+          msg->pose.pose.orientation.w, msg->pose.pose.orientation.x,
+          msg->pose.pose.orientation.y, msg->pose.pose.orientation.z));
+
+  sensor::OdometryData odometry_data(rclcpp::Time(msg->header.stamp).seconds());
+  odometry_data.set_pose(eigen_pose);
+
+  locator_->AddOdometryData(odometry_data);
+}
 
 void LocalizationNode::HandleImuMessage(
     const sensor_msgs::msg::Imu::SharedPtr msg) {}
@@ -250,21 +264,21 @@ void LocalizationNode::HandleGridMapMessage(
   auto probability_grid = std::make_shared<ProbabilityGrid>(
       map_limits, correspondence_cost_cells, nullptr);
 
-  {
-    cv::Mat image(height, width, CV_8UC1);
-    for (int y = 0; y < height; ++y) {
-      for (int x = 0; x < width; ++x) {
-        const int flat_index = y * width + x;
-        const double distance = distance_field[flat_index];
-        const float probability = std::exp(-(distance * distance) / 25.0);
-        const uchar pixel_value = static_cast<uchar>(
-            std::clamp((1.0f - probability) * 255.0f, 0.0f, 255.0f));
-        image.at<uchar>(height - 1 - y, x) = pixel_value;
-      }
-    }
+  // {
+  //   cv::Mat image(height, width, CV_8UC1);
+  //   for (int y = 0; y < height; ++y) {
+  //     for (int x = 0; x < width; ++x) {
+  //       const int flat_index = y * width + x;
+  //       const double distance = distance_field[flat_index];
+  //       const float probability = std::exp(-(distance * distance) / 25.0);
+  //       const uchar pixel_value = static_cast<uchar>(
+  //           std::clamp((1.0f - probability) * 255.0f, 0.0f, 255.0f));
+  //       image.at<uchar>(height - 1 - y, x) = pixel_value;
+  //     }
+  //   }
 
-    cv::imwrite("/home/linjs/图片/correspondence_cost_cells.png", image);
-  }
+  //   cv::imwrite("/home/linjs/图片/correspondence_cost_cells.png", image);
+  // }
 
   probability_grid->VisualizeGrid();
 
@@ -278,7 +292,8 @@ void LocalizationNode::PublishPointCloud() {
 
   // pcl::PointCloud<pcl::PointXYZI> cloud_points;
   // for (const auto& keyframe : keyframe_buffer) {
-  //   for (const sensor::TimedPointCloud& timed_point : keyframe->point_cloud.points) {
+  //   for (const sensor::TimedPointCloud& timed_point :
+  //   keyframe->point_cloud.points) {
   //     const Eigen::Vector3d transformed_point =
   //         TransformPoint(keyframe->optimized_pose, timed_point.position);
   //     pcl::PointXYZI pcl_point;
@@ -303,10 +318,7 @@ void LocalizationNode::PublishPointCloud() {
 }
 
 void LocalizationNode::PublishRobotPose() {
-  Eigen::Matrix4d delta_transform = Eigen::Matrix4d::Identity();
-  delta_transform.block<3, 3>(0, 0) =
-      Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()).toRotationMatrix();
-  const Eigen::Matrix4d curr_pose = locator_->curr_pose() * delta_transform;
+  const Eigen::Matrix4d curr_pose = locator_->GetLatestPose();
 
   geometry_msgs::msg::PoseStamped pose_msg;
   pose_msg.header.stamp = this->now();
@@ -346,7 +358,8 @@ void LocalizationNode::PublishTransform() {
   odom_to_base.child_frame_id = "base_link";
   Eigen::Matrix4d odom_pose = Eigen::Matrix4d::Identity();
   odom_to_base.transform =
-      tf2::eigenToTransform(Eigen::Affine3d(locator_->curr_pose())).transform;
+      tf2::eigenToTransform(Eigen::Affine3d(locator_->GetLatestPose()))
+          .transform;
   tf_broadcaster_->sendTransform(odom_to_base);
 }
 

@@ -121,34 +121,41 @@ std::pair<Eigen::Matrix4d, float> Localization::MatchGlobalMap(
   //                            &ceres_pose_estimate, &ceres_match_score);
   // LOG(INFO) << "-------------------------- ceres = " << ceres_match_score;
 
-  // {
-  //   const MapLimits& map_limits = probability_grid_->map_limits();
-  //   const int width = map_limits.cell_limits().num_x_cells;
-  //   const int height = map_limits.cell_limits().num_y_cells;
+  {
+    const MapLimits& map_limits = probability_grid_->map_limits();
+    const int width = map_limits.cell_limits().num_x_cells;
+    const int height = map_limits.cell_limits().num_y_cells;
 
-  //   cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
-  //   for (int y = 0; y < height; ++y) {
-  //     for (int x = 0; x < width; ++x) {
-  //       const Eigen::Array2i index(x, y);
-  //       const double probability = probability_grid_->GetProbability(index);
-  //       const uint8_t value = 255 * (1.0 - probability);
-  //       image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
-  //     }
-  //   }
+    cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        const Eigen::Array2i index(x, y);
+        const double probability = probability_grid_->GetProbability(index);
+        const uint8_t value = 255 * (1.0 - probability);
+        image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
+      }
+    }
 
-  //   for (const Eigen::Vector3d& point : points) {
-  //     const Eigen::Vector2d new_point = ceres_pose_estimate * point.head(2);
-  //     const Eigen::Array2i index =
-  //         map_limits.GetCellIndex(new_point.cast<float>());
-  //     image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 0, 255);
-  //   }
+    for (const Eigen::Vector3d& point : points) {
+      const Eigen::Vector2d new_point = ceres_pose_estimate * point.head(2);
+      const Eigen::Array2i index =
+          map_limits.GetCellIndex(new_point.cast<float>());
+      image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 0, 255);
+    }
 
-  //   cv::imwrite("/home/linjs/图片/global_match/match_" +
-  //                   std::to_string(count_++) + ".png",
-  //               image);
-  // }
+    cv::imwrite("/home/linjs/图片/global_match/match_" +
+                    std::to_string(count_++) + ".png",
+                image);
+  }
 
   // return std::make_pair(global_pose, match_score);
+
+  const transform::Rigid2d delta_pose =
+      ToRigid2d(initial_pose).inverse() * ceres_pose_estimate;
+  LOG(INFO) << "delta = " << delta_pose.translation().x() << ", "
+            << delta_pose.translation().x() << ", "
+            << delta_pose.rotation().angle() * 180 / M_PI;
+
   return std::make_pair(ToMatrix4d(ceres_pose_estimate), ceres_match_score);
 }
 
@@ -274,6 +281,10 @@ void Localization::GlobalLocalization(const sensor::LaserData& laser_data) {
   ++keyframe_interval_;
 
   localization_status_ = LocalizationStatus::kSuccess;
+
+  pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
+  pose_extrapolator_->AddPose(laser_data.timestamp(),
+                              transform::Rigid3d::Identity());
 }
 
 void Localization::Relocalization(const sensor::LaserData& laser_data) {
@@ -295,14 +306,14 @@ void Localization::Track(const sensor::LaserData& laser_data) {
   //                                   &local_pose_estimate, &local_pose_score,
   //                                   &is_keyframe);
 
-  transform::Rigid2d delta_pose =
-      last_local_pose_.inverse() * local_pose_estimate;
-  // LOG(INFO) << count_++ << ". delta = " << delta_pose.translation().x() << ",
-  // "
+  // transform::Rigid2d delta_pose =
+  //     last_local_pose_.inverse() * local_pose_estimate;
+  // LOG(INFO) << count_++ << ". delta = " << delta_pose.translation().x()
+  //           << ",
+  //              "
   //           << delta_pose.translation().x() << ", "
   //           << delta_pose.rotation().angle() * 180 / M_PI;
   last_local_pose_ = local_pose_estimate;
-  curr_pose_ = ToMatrix4d(local_pose_estimate);
 
   pose_extrapolator_->AddPose(
       laser_data.timestamp(),
@@ -399,12 +410,6 @@ void Localization::AddLaserData(const sensor::LaserData& laser_data) {
   // GlobalLocalization(laser_data);
   // return;
 
-  if (pose_extrapolator_ == nullptr) {
-    pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
-    pose_extrapolator_->AddPose(laser_data.timestamp(),
-                                transform::Rigid3d::Identity());
-  }
-
   // DistordPointCloud(laser_data);
 
   // Track(laser_data);
@@ -446,12 +451,6 @@ void Localization::AddLaserData(const sensor::LaserData& laser_data) {
   if (keyframe_buffer_.size() > kMaxKeyframeBufferLength) {
     keyframe_buffer_.pop_front();
   }
-
-  if (!keyframe_buffer_.empty()) {
-    curr_pose_ = keyframe_buffer_.back()->optimized_pose *
-                 keyframe_buffer_.back()->local_pose.inverse() *
-                 ToMatrix4d(last_local_pose_);
-  }
 }
 
 void Localization::AddGridMap(
@@ -482,9 +481,17 @@ void Localization::AddInitialPose(const Eigen::Matrix4d& initial_pose) {
   pose_extrapolator_ = nullptr;
 }
 
-void Localization::AddImuData(const sensor::ImuData& imu_data) {}
+void Localization::AddImuData(const sensor::ImuData& imu_data) {
+  // if (pose_extrapolator_ != nullptr) {
+  //   pose_extrapolator_->AddImuData(imu_data);
+  // }
+}
 
-void Localization::AddOdometryData(const sensor::OdometryData& odometry_data) {}
+void Localization::AddOdometryData(const sensor::OdometryData& odometry_data) {
+  if (pose_extrapolator_ != nullptr) {
+    pose_extrapolator_->AddOdometryData(odometry_data);
+  }
+}
 
 void Localization::Init() {
   ceres_scan_matcher_ = std::make_shared<CeresScanMatcher2D>(
@@ -494,11 +501,21 @@ void Localization::Init() {
 
   RealTimeCorrelativeScanMatcherOptions2D options;
   options.linear_search_window = 0.2;
-  options.angular_search_window = 5.0 * kDegreeToRadian;
+  options.angular_search_window = 2.5 * kDegreeToRadian;
   options.translation_delta_cost_weight = 0.1;
   options.rotation_delta_cost_weight = 0.1;
   real_time_correlative_scan_matcher_ =
       std::make_shared<RealTimeCorrelativeScanMatcher2D>(options);
+}
+
+const Eigen::Matrix4d Localization::GetLatestPose() const {
+  if (keyframe_buffer_.empty() || pose_extrapolator_ == nullptr) {
+    return Eigen::Matrix4d::Identity();
+  } else {
+    return keyframe_buffer_.back()->optimized_pose *
+           keyframe_buffer_.back()->local_pose.inverse() *
+           ToMatrix4d(transform::Project2D(pose_extrapolator_->latest_pose()));
+  }
 }
 
 }  // namespace solex_robot::navigation::localization_2d
