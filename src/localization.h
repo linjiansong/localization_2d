@@ -33,6 +33,7 @@
 #include "Eigen/Core"
 #include "Eigen/Dense"
 #include "common/base_type.h"
+#include "common/sensor_type.h"
 #include "include/map_builder/local_map_builder.h"
 #include "include/pose_estimator/pose_extrapolator.h"
 #include "include/scan_match/ceres_scan_matcher_2d.h"
@@ -47,9 +48,9 @@ class Localization {
   Localization() = default;
   ~Localization() = default;
 
-  void AddImuData();
-  void AddOdometryData();
-  void AddPointCloud(const PointCloud& point_cloud);
+  void AddImuData(const sensor::ImuData& imu_data);
+  void AddOdometryData(const sensor::OdometryData& odometry_data);
+  void AddLaserData(const sensor::LaserData& laser_data);
   void AddGridMap(std::shared_ptr<ProbabilityGrid> probability_grid);
   void AddInitialPose(const Eigen::Matrix4d& initial_pose);
   void Init();
@@ -60,21 +61,19 @@ class Localization {
   const Eigen::Matrix4d& curr_pose() const { return curr_pose_; }
 
  private:
-  void DistordPointCloud(const PointCloud& point_cloud);
+  void DistordPointCloud(const sensor::LaserData& laser_data);
 
   std::pair<Eigen::Matrix4d, float> MatchGlobalMap(
       const std::vector<Eigen::Vector3d>& points,
       const Eigen::Matrix4d& initial_pose);
 
-  void GlobalLocalization(const PointCloud& point_cloud);
+  void GlobalLocalization(const sensor::LaserData& laser_data);
 
-  void Relocalization(const PointCloud& point_cloud);
+  void Relocalization(const sensor::LaserData& laser_data);
 
-  void Track(const PointCloud& point_cloud);
+  void Track(const sensor::LaserData& laser_data);
 
   void GlobalOptimize();
-
-  void GlobalLocalization();
 
  private:
   std::shared_ptr<ProbabilityGrid> probability_grid_;

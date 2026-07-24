@@ -33,19 +33,76 @@
 namespace solex_robot::navigation::localization_2d {
 namespace sensor {
 
-struct ImuData {
-  double time = 0.0;
-  transform::Rigid3d pose;
-  Eigen::Vector3d angular_velocity;
-  Eigen::Vector3d linear_acceleration;
+enum class DataType { kLaserData = 0, kImuData = 1, kOdometryData = 2 };
 
+struct TimedPointCloud {
+  Eigen::Vector3d position;
+  double timestamp = 0.0;
+};
+using TimedPointCloudPtr = std::shared_ptr<TimedPointCloud>;
+
+class Data {
+ public:
+  Data(const double timestamp, const DataType data_type)
+      : timestamp_(timestamp), data_type_(data_type) {}
+
+  double timestamp() const { return timestamp_; }
+  DataType data_type() const { return data_type_; }
+
+ private:
+  const double timestamp_;
+  const DataType data_type_;
 };
 
-struct OdometryData {
-  double time = 0.0;
-  transform::Rigid3d pose;
+class LaserData final : public Data {
+ public:
+  LaserData(const double timestamp) : Data(timestamp, DataType::kLaserData) {}
+
+  const std::vector<TimedPointCloudPtr>& points() const { return points_; }
+  std::vector<TimedPointCloudPtr>* mutable_points() { return &points_; }
+
+ private:
+  std::vector<TimedPointCloudPtr> points_;
+};
+
+// Imu data
+class ImuData final : public Data {
+ public:
+  ImuData(const double timestamp) : Data(timestamp, DataType::kImuData) {}
+
+  const transform::Rigid3d& pose() const { return pose_; }
+  void set_pose(const transform::Rigid3d& pose) { pose_ = pose; }
+
+  const Eigen::Vector3d& angular_velocity() const { return angular_velocity_; }
+  void set_angular_velocity(const Eigen::Vector3d& angular_velocity) {
+    angular_velocity_ = angular_velocity;
+  }
+
+  const Eigen::Vector3d& linear_acceleration() const {
+    return linear_acceleration_;
+  }
+  void set_linear_acceleration(const Eigen::Vector3d& linear_acceleration) {
+    linear_acceleration_ = linear_acceleration;
+  }
+
+ private:
+  transform::Rigid3d pose_;
+  Eigen::Vector3d angular_velocity_;
+  Eigen::Vector3d linear_acceleration_;
+};
+
+// Odometry Data
+class OdometryData final : public Data {
+ public:
+  OdometryData(const double timestamp)
+      : Data(timestamp, DataType::kOdometryData) {}
+
+  const transform::Rigid3d& pose() const { return pose_; }
+  void set_pose(const transform::Rigid3d& pose) { pose_ = pose; }
+
+ private:
+  transform::Rigid3d pose_;
 };
 
 }  // namespace sensor
-
 }  // namespace solex_robot::navigation::localization_2d

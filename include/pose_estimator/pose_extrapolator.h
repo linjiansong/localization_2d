@@ -30,13 +30,13 @@
 #include <memory>
 
 #include "common/rigid_transform.h"
-#include "include/pose_estimator/imu_tracker.h"
 #include "common/sensor_type.h"
+#include "include/pose_estimator/imu_tracker.h"
 
 namespace solex_robot::navigation::localization_2d {
 
 struct TimedPose {
-  double time = std::numeric_limits<double>::lowest();
+  double timestamp = std::numeric_limits<double>::lowest();
   transform::Rigid3d pose = transform::Rigid3d::Identity();
 };
 

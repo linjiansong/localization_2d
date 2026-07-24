@@ -39,17 +39,6 @@ enum class LocalizationStatus {
   kGlobalLocalization = 5
 };
 
-struct TimedPointCloud {
-  Eigen::Vector3d position;
-  double timestamp = 0.0;
-};
-using TimedPointCloudPtr = std::shared_ptr<TimedPointCloud>;
-
-struct PointCloud {
-  std::vector<TimedPointCloudPtr> points;
-  double timestamp = 0.0;
-};
-
 struct State {
   Eigen::Vector3d position;
   Eigen::Vector3d rotation;  // so3

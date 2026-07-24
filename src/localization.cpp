@@ -90,10 +90,10 @@ Eigen::Vector3d TransformPoint(const Eigen::Matrix4d& transform,
   return transform.block<3, 3>(0, 0) * point + transform.block<3, 1>(0, 3);
 }
 
-std::vector<Eigen::Vector3d> ConvertPoint(const PointCloud& point_cloud) {
+std::vector<Eigen::Vector3d> ConvertPoint(const sensor::LaserData& laser_data) {
   std::vector<Eigen::Vector3d> eigen_points;
-  eigen_points.reserve(point_cloud.points.size());
-  for (const TimedPointCloudPtr& timed_point : point_cloud.points) {
+  eigen_points.reserve(laser_data.points().size());
+  for (const sensor::TimedPointCloudPtr& timed_point : laser_data.points()) {
     eigen_points.emplace_back(timed_point->position);
   }
 
@@ -226,10 +226,10 @@ void Localization::GlobalOptimize() {
   }
 }
 
-void Localization::GlobalLocalization(const PointCloud& point_cloud) {
+void Localization::GlobalLocalization(const sensor::LaserData& laser_data) {
   CHECK_NOTNULL(fast_correlative_scan_matcher_);
 
-  const std::vector<Eigen::Vector3d>& eigen_points = ConvertPoint(point_cloud);
+  const std::vector<Eigen::Vector3d>& eigen_points = ConvertPoint(laser_data);
 
   float fast_match_score = 0.f;
   transform::Rigid2d fast_pose_estimate;
@@ -264,7 +264,7 @@ void Localization::GlobalLocalization(const PointCloud& point_cloud) {
   }
 
   const KeyframePtr new_keyframe = std::make_shared<Keyframe>();
-  new_keyframe->timestamp = point_cloud.timestamp;
+  new_keyframe->timestamp = laser_data.timestamp();
   new_keyframe->global_pose = ToMatrix4d(ceres_pose_estimate);
   new_keyframe->local_pose = Eigen::Matrix4d::Identity();
   new_keyframe->optimized_pose = ToMatrix4d(ceres_pose_estimate);
@@ -276,21 +276,21 @@ void Localization::GlobalLocalization(const PointCloud& point_cloud) {
   localization_status_ = LocalizationStatus::kSuccess;
 }
 
-void Localization::Relocalization(const PointCloud& point_cloud) {
+void Localization::Relocalization(const sensor::LaserData& laser_data) {
   CHECK_NOTNULL(fast_correlative_scan_matcher_);
 }
 
-void Localization::Track(const PointCloud& point_cloud) {
+void Localization::Track(const sensor::LaserData& laser_data) {
   transform::Rigid2d local_pose_estimate;
   float local_pose_score = 0.0;
   bool is_keyframe = false;
   local_map_builder_->AddPointCloud(
-      ConvertPoint(point_cloud),
+      ConvertPoint(laser_data),
       transform::Project2D(
-          pose_extrapolator_->ExtrapolatePose(point_cloud.timestamp)),
+          pose_extrapolator_->ExtrapolatePose(laser_data.timestamp())),
       &local_pose_estimate, &local_pose_score, &is_keyframe);
 
-  // local_map_builder_->AddPointCloud(ConvertPoint(point_cloud),
+  // local_map_builder_->AddPointCloud(ConvertPoint(laser_data),
   // last_local_pose_,
   //                                   &local_pose_estimate, &local_pose_score,
   //                                   &is_keyframe);
@@ -305,7 +305,7 @@ void Localization::Track(const PointCloud& point_cloud) {
   curr_pose_ = ToMatrix4d(local_pose_estimate);
 
   pose_extrapolator_->AddPose(
-      point_cloud.timestamp,
+      laser_data.timestamp(),
       transform::Rigid3d(
           Eigen::Vector3d(local_pose_estimate.translation().x(),
                           local_pose_estimate.translation().y(), 0.),
@@ -346,10 +346,10 @@ void Localization::Track(const PointCloud& point_cloud) {
       ToMatrix4d(local_pose_estimate);
 
   const auto [global_pose, global_pose_score] =
-      MatchGlobalMap(ConvertPoint(point_cloud), global_pose_guess);
+      MatchGlobalMap(ConvertPoint(laser_data), global_pose_guess);
 
   const KeyframePtr new_keyframe = std::make_shared<Keyframe>();
-  new_keyframe->timestamp = point_cloud.timestamp;
+  new_keyframe->timestamp = laser_data.timestamp();
   new_keyframe->global_pose = global_pose;
   new_keyframe->local_pose = ToMatrix4d(local_pose_estimate);
   new_keyframe->optimized_pose = global_pose;
@@ -382,48 +382,48 @@ void Localization::Track(const PointCloud& point_cloud) {
   // }
 }
 
-void Localization::DistordPointCloud(const PointCloud& point_cloud) {
+void Localization::DistordPointCloud(const sensor::LaserData& laser_data) {
   const transform::Rigid3d start_pose =
-      pose_extrapolator_->ExtrapolatePose(point_cloud.timestamp);
+      pose_extrapolator_->ExtrapolatePose(laser_data.timestamp());
 
-  for (const TimedPointCloudPtr time_point : point_cloud.points) {
+  for (const sensor::TimedPointCloudPtr timed_point : laser_data.points()) {
     const transform::Rigid3d curr_pose =
-        pose_extrapolator_->ExtrapolatePose(time_point->timestamp);
-    time_point->position =
-        start_pose.inverse() * curr_pose * time_point->position;
+        pose_extrapolator_->ExtrapolatePose(timed_point->timestamp);
+    timed_point->position =
+        start_pose.inverse() * curr_pose * timed_point->position;
   }
 }
 
-void Localization::AddPointCloud(const PointCloud& point_cloud) {
+void Localization::AddLaserData(const sensor::LaserData& laser_data) {
   // std::unique_lock<std::mutex> lock(keyframe_buffer_mutex_);
-  // GlobalLocalization(point_cloud);
+  // GlobalLocalization(laser_data);
   // return;
 
   if (pose_extrapolator_ == nullptr) {
     pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
-    pose_extrapolator_->AddPose(point_cloud.timestamp,
+    pose_extrapolator_->AddPose(laser_data.timestamp(),
                                 transform::Rigid3d::Identity());
   }
 
-  // DistordPointCloud(point_cloud);
+  // DistordPointCloud(laser_data);
 
-  // Track(point_cloud);
+  // Track(laser_data);
   // return;
 
   switch (localization_status_) {
     case LocalizationStatus::kInitialization:
     case LocalizationStatus::kGlobalLocalization: {
-      GlobalLocalization(point_cloud);
+      GlobalLocalization(laser_data);
       break;
     }
 
     case LocalizationStatus::kRelocalization: {
-      Relocalization(point_cloud);
+      Relocalization(laser_data);
       break;
     }
 
     case LocalizationStatus::kSuccess: {
-      Track(point_cloud);
+      Track(laser_data);
       break;
     }
 
@@ -482,9 +482,9 @@ void Localization::AddInitialPose(const Eigen::Matrix4d& initial_pose) {
   pose_extrapolator_ = nullptr;
 }
 
-void Localization::AddImuData() {}
+void Localization::AddImuData(const sensor::ImuData& imu_data) {}
 
-void Localization::AddOdometryData() {}
+void Localization::AddOdometryData(const sensor::OdometryData& odometry_data) {}
 
 void Localization::Init() {
   ceres_scan_matcher_ = std::make_shared<CeresScanMatcher2D>(

@@ -31,10 +31,10 @@ namespace solex_robot::navigation::localization_2d {
 
 class ImuTracker {
  public:
-  ImuTracker(double imu_gravity_time_constant, double time);
+  ImuTracker(double imu_gravity_time_constant, double timestamp);
 
-  // Advances to the given 'time' and updates the orientation to reflect this.
-  void Advance(double time);
+  // Advances to the given 'timestamp' and updates the orientation to reflect this.
+  void Advance(double timestamp);
 
   // Updates from an IMU reading (in the IMU frame).
   void AddImuLinearAccelerationObservation(
@@ -43,15 +43,15 @@ class ImuTracker {
   void AddImuAngularVelocityObservation(
       const Eigen::Vector3d& imu_angular_velocity);
 
-  // Query the current time.
-  double time() const { return time_; }
+  // Query the current timestamp.
+  double timestamp() const { return timestamp_; }
 
   // Query the current orientation estimate.
   Eigen::Quaterniond orientation() const { return orientation_; }
 
  private:
   const double imu_gravity_time_constant_;
-  double time_;
+  double timestamp_;
 
   double last_linear_acceleration_time_ = std::numeric_limits<double>::lowest();
   Eigen::Quaterniond orientation_ = Eigen::Quaterniond::Identity();

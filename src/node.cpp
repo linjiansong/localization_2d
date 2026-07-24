@@ -141,10 +141,8 @@ void LocalizationNode::HandleScanMessage(
   }
 
   const double start_time = rclcpp::Time(msg->header.stamp).seconds();
-  PointCloud point_cloud;
-  point_cloud.timestamp = start_time;
-  point_cloud.points.reserve(msg->ranges.size());
-
+  std::vector<sensor::TimedPointCloudPtr> timed_points;
+  timed_points.reserve(msg->ranges.size());
   for (size_t i = 0; i < msg->ranges.size(); ++i) {
     const float range = msg->ranges[i];
     const double time_offset = msg->time_increment * i;  // second
@@ -162,15 +160,18 @@ void LocalizationNode::HandleScanMessage(
     const Eigen::Vector3d position =
         laser_to_base_transform * rotation * (Eigen::Vector3d(range, 0.0, 0.0));
 
-    TimedPointCloudPtr timed_point = std::make_shared<TimedPointCloud>();
+    sensor::TimedPointCloudPtr timed_point =
+        std::make_shared<sensor::TimedPointCloud>();
     timed_point->position = position;
     timed_point->timestamp = start_time + time_offset;
-    point_cloud.points.emplace_back(timed_point);
+    timed_points.emplace_back(timed_point);
   }
 
   CHECK_NOTNULL(locator_);
-  if (!point_cloud.points.empty()) {
-    locator_->AddPointCloud(point_cloud);
+  if (!timed_points.empty()) {
+    sensor::LaserData laser_data = sensor::LaserData(start_time);
+    *(laser_data.mutable_points()) = timed_points;
+    locator_->AddLaserData(laser_data);
   }
 }
 
@@ -277,7 +278,7 @@ void LocalizationNode::PublishPointCloud() {
 
   // pcl::PointCloud<pcl::PointXYZI> cloud_points;
   // for (const auto& keyframe : keyframe_buffer) {
-  //   for (const TimedPointCloud& timed_point : keyframe->point_cloud.points) {
+  //   for (const sensor::TimedPointCloud& timed_point : keyframe->point_cloud.points) {
   //     const Eigen::Vector3d transformed_point =
   //         TransformPoint(keyframe->optimized_pose, timed_point.position);
   //     pcl::PointXYZI pcl_point;
