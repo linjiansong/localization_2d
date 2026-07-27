@@ -229,9 +229,9 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
         score += precomputation_grid.GetValue(index);
       }
 
-      LOG(INFO) << "score = "
-                << precomputation_grid.ToScore(score /
-                                               rotated_point_cloud.size());
+      // LOG(INFO) << "score = "
+      //           << precomputation_grid.ToScore(score /
+      //                                          rotated_point_cloud.size());
     }
 
     return true;
@@ -247,7 +247,7 @@ FastCorrelativeScanMatcher2D::ComputeLowestResolutionCandidates(
   std::vector<Candidate2D> lowest_resolution_candidates =
       GenerateLowestResolutionCandidates(search_parameters);
 
-  LOG(INFO) << "discrete_scans = " << discrete_scans.size();
+  // LOG(INFO) << "discrete_scans = " << discrete_scans.size();
   ScoreCandidates(
       precomputation_grid_stack_->Get(precomputation_grid_stack_->max_depth()),
       discrete_scans, search_parameters, &lowest_resolution_candidates);
@@ -294,8 +294,8 @@ FastCorrelativeScanMatcher2D::ComputeLowestResolutionCandidates(
     cv::imwrite("/home/linjs/图片/lowest_resolution_candidates.png", image);
   }
 
-  LOG(INFO) << "lowest_resolution_candidates = "
-            << lowest_resolution_candidates.size();
+  // LOG(INFO) << "lowest_resolution_candidates = "
+  //           << lowest_resolution_candidates.size();
   return lowest_resolution_candidates;
 }
 
@@ -318,14 +318,10 @@ FastCorrelativeScanMatcher2D::GenerateLowestResolutionCandidates(
                       num_lowest_resolution_linear_y_candidates;
   }
 
-  LOG(INFO) << "num_candidates = " << num_candidates;
   std::vector<Candidate2D> candidates;
   candidates.reserve(num_candidates);
   for (int scan_index = 0; scan_index != search_parameters.num_scans;
        ++scan_index) {
-    // LOG(INFO) << "linear_bounds = "
-    //           << search_parameters.linear_bounds[scan_index].min_x << ", "
-    //           << search_parameters.linear_bounds[scan_index].max_x;
     for (int x_index_offset = search_parameters.linear_bounds[scan_index].min_x;
          x_index_offset <= search_parameters.linear_bounds[scan_index].max_x;
          x_index_offset += linear_step_size) {

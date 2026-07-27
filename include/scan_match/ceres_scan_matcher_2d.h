@@ -38,9 +38,7 @@ namespace solex_robot::navigation::localization_2d {
 // Align scans with an existing map using Ceres.
 class CeresScanMatcher2D {
  public:
-  CeresScanMatcher2D(const double occupied_space_weight_,
-                     const double translation_weight_,
-                     const double rotation_weight_);
+  CeresScanMatcher2D() = default;
   ~CeresScanMatcher2D() = default;
 
   CeresScanMatcher2D(const CeresScanMatcher2D&) = delete;
@@ -53,11 +51,6 @@ class CeresScanMatcher2D {
              const std::vector<Eigen::Vector3d>& point_cloud,
              const std::shared_ptr<ProbabilityGrid> probability_grid,
              transform::Rigid2d* const pose_estimate, float* const score);
-
- private:
-  const double occupied_space_weight_;
-  const double translation_weight_;
-  const double rotation_weight_;
 };
 
 }  // namespace solex_robot::navigation::localization_2d

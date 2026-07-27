@@ -50,7 +50,6 @@ Eigen::Vector3d TransformPoint(const Eigen::Matrix4d& transform,
 }  // namespace
 
 LocalizationNode::LocalizationNode() : rclcpp::Node("sensor_subscriber_node") {
-  std::cout << "You are zhuangzhuang" << std::endl;
   // 使用 SensorDataQoS，这对于传感器高频数据至关重要
   auto qos = rclcpp::SensorDataQoS();
 
@@ -102,7 +101,6 @@ LocalizationNode::LocalizationNode() : rclcpp::Node("sensor_subscriber_node") {
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
   locator_ = std::make_unique<Localization>();
-  locator_->Init();
 
   // 创建定时器，10Hz 发布
   timer_ = this->create_wall_timer(std::chrono::milliseconds(100), [this]() {
@@ -358,8 +356,7 @@ void LocalizationNode::PublishTransform() {
   odom_to_base.child_frame_id = "base_link";
   Eigen::Matrix4d odom_pose = Eigen::Matrix4d::Identity();
   odom_to_base.transform =
-      tf2::eigenToTransform(Eigen::Affine3d(locator_->GetLatestPose()))
-          .transform;
+      tf2::eigenToTransform(Eigen::Affine3d(locator_->GetLatestPose())).transform;
   tf_broadcaster_->sendTransform(odom_to_base);
 }
 

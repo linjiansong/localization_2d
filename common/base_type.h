@@ -44,18 +44,4 @@ struct State {
   Eigen::Vector3d rotation;  // so3
   Eigen::Vector3d velocity;
 };
-
-struct Keyframe {
-  double timestamp = 0.0;
-  Eigen::Matrix4d global_pose;     // scan to global map
-  Eigen::Matrix4d local_pose;      // scan to submap
-  Eigen::Matrix4d optimized_pose;  // optimized_pose
-  double global_pose_score = 0.0;
-  double local_pose_score = 0.0;
-  State state;
-};
-
-using KeyframePtr = std::shared_ptr<Keyframe>;
-using PosePtr = std::shared_ptr<double[]>;
-
 }  // namespace solex_robot::navigation::localization_2d

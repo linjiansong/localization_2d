@@ -46,6 +46,7 @@ add_executable(localization_2d_node
   include/scan_match/precomputation_grid_2d.cpp
   include/scan_match/probability_grid.cpp
   include/scan_match/real_time_correlative_scan_matcher_2d.cpp
+  include/pose_graph/pose_graph.cpp
 )
 
 # 使用 ament 处理 ROS 依赖，自动解决 nav_msgs 找不到头文件的问题

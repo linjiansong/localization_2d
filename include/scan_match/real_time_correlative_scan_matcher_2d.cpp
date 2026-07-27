@@ -45,28 +45,23 @@ std::vector<Eigen::Vector3d> TransformPointCloud(
   }
   return result;
 }
+}  // namespace
 
-float ComputeCandidateScore(const ProbabilityGrid& probability_grid,
-                            const DiscreteScan2D& discrete_scan,
-                            int x_index_offset, int y_index_offset) {
+float RealTimeCorrelativeScanMatcher2D::ComputeCandidateScore(
+    const DiscreteScan2D& discrete_scan, int x_index_offset,
+    int y_index_offset) const {
   float candidate_score = 0.f;
   for (const Eigen::Array2i& xy_index : discrete_scan) {
     const Eigen::Array2i proposed_xy_index(xy_index.x() + x_index_offset,
                                            xy_index.y() + y_index_offset);
     const float probability =
-        probability_grid.GetProbability(proposed_xy_index);
+        probability_grid_->GetProbability(proposed_xy_index);
     candidate_score += probability;
   }
   candidate_score /= static_cast<float>(discrete_scan.size());
   // CHECK_GT(candidate_score, 0.f);
   return candidate_score;
 }
-
-}  // namespace
-
-RealTimeCorrelativeScanMatcher2D::RealTimeCorrelativeScanMatcher2D(
-    const RealTimeCorrelativeScanMatcherOptions2D& options)
-    : options_(options) {}
 
 std::vector<Candidate2D>
 RealTimeCorrelativeScanMatcher2D::GenerateExhaustiveSearchCandidates(
@@ -143,8 +138,7 @@ RealTimeCorrelativeScanMatcher2D::GenerateRotatedScans(
 void RealTimeCorrelativeScanMatcher2D::Match(
     const transform::Rigid2d& initial_pose_estimate,
     const std::vector<Eigen::Vector3d>& point_cloud,
-    const ProbabilityGrid& probability_grid, transform::Rigid2d* pose_estimate,
-    float* score) const {
+    transform::Rigid2d* pose_estimate, float* score) const {
   CHECK(pose_estimate != nullptr);
 
   const Eigen::Rotation2Dd initial_rotation = initial_pose_estimate.rotation();
@@ -154,17 +148,16 @@ void RealTimeCorrelativeScanMatcher2D::Match(
           initial_rotation.cast<float>().angle(), Eigen::Vector3f::UnitZ())));
   const SearchParameters search_parameters(
       options_.linear_search_window, options_.angular_search_window,
-      rotated_point_cloud, probability_grid.map_limits().resolution());
+      rotated_point_cloud, probability_grid_->map_limits().resolution());
   const std::vector<std::vector<Eigen::Vector3d>> rotated_scans =
       GenerateRotatedScans(rotated_point_cloud, search_parameters);
   const std::vector<DiscreteScan2D> discrete_scans = DiscretizeScans(
-      probability_grid.map_limits(), rotated_scans,
+      probability_grid_->map_limits(), rotated_scans,
       Eigen::Translation2f(initial_pose_estimate.translation().x(),
                            initial_pose_estimate.translation().y()));
   std::vector<Candidate2D> candidates =
       GenerateExhaustiveSearchCandidates(search_parameters);
-  ScoreCandidates(probability_grid, discrete_scans, search_parameters,
-                  &candidates);
+  ScoreCandidates(discrete_scans, search_parameters, &candidates);
 
   const Candidate2D& best_candidate =
       *std::max_element(candidates.begin(), candidates.end());
@@ -176,21 +169,18 @@ void RealTimeCorrelativeScanMatcher2D::Match(
 }
 
 void RealTimeCorrelativeScanMatcher2D::ScoreCandidates(
-    const ProbabilityGrid& probability_grid,
     const std::vector<DiscreteScan2D>& discrete_scans,
     const SearchParameters& search_parameters,
     std::vector<Candidate2D>* const candidates) const {
   for (Candidate2D& candidate : *candidates) {
-    switch (probability_grid.GetGridType()) {
+    switch (probability_grid_->GetGridType()) {
       case GridType::PROBABILITY_GRID:
         candidate.score = ComputeCandidateScore(
-            static_cast<const ProbabilityGrid&>(probability_grid),
             discrete_scans[candidate.scan_index], candidate.x_index_offset,
             candidate.y_index_offset);
         break;
         //   case GridType::TSDF:
         //     candidate.score = ComputeCandidateScore(
-        //         static_cast<const TSDF2D&>(probability_grid),
         //         discrete_scans[candidate.scan_index],
         //         candidate.x_index_offset, candidate.y_index_offset);
         //     break;

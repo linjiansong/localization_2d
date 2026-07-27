@@ -34,14 +34,11 @@
 
 namespace solex_robot::navigation::localization_2d {
 
-// extern class OccupiedSpaceCostFunction2D;
-
-CeresScanMatcher2D::CeresScanMatcher2D(const double occupied_space_weight,
-                                       const double translation_weight,
-                                       const double rotation_weight)
-    : occupied_space_weight_(occupied_space_weight),
-      translation_weight_(translation_weight),
-      rotation_weight_(rotation_weight) {}
+namespace {
+constexpr double kOccupiedSpaceWeight = 10.0;
+constexpr double kTranslationWeight = 10.0;
+constexpr double kRotationWeight = 40.0;
+}  // namespace
 
 void CeresScanMatcher2D::Match(
     const transform::Rigid2d& initial_pose_estimate,
@@ -53,15 +50,15 @@ void CeresScanMatcher2D::Match(
                                    initial_pose_estimate.rotation().angle()};
 
   ceres::Problem problem;
-  CHECK_GT(occupied_space_weight_, 0.);
-  CHECK_GT(translation_weight_, 0.);
-  CHECK_GT(rotation_weight_, 0.);
+  CHECK_GT(kOccupiedSpaceWeight, 0.);
+  CHECK_GT(kTranslationWeight, 0.);
+  CHECK_GT(kRotationWeight, 0.);
 
   switch (probability_grid->GetGridType()) {
     case GridType::PROBABILITY_GRID:
       problem.AddResidualBlock(
           OccupiedSpaceCostFunction2D::Create(
-              occupied_space_weight_ /
+              kOccupiedSpaceWeight /
                   std::sqrt(static_cast<double>(point_cloud.size())),
               point_cloud, *probability_grid),
           nullptr /* loss function */, ceres_pose_estimate);
@@ -69,7 +66,7 @@ void CeresScanMatcher2D::Match(
       // case GridType::TSDF:
       //   problem.AddResidualBlock(
       //       CreateTSDFMatchCostFunction2D(
-      //           occupied_space_weight_/
+      //           kOccupiedSpaceWeight/
       //               std::sqrt(static_cast<double>(point_cloud.size())),
       //           point_cloud, static_cast<const TSDF2D&>(grid)),
       //       nullptr /* loss function */, ceres_pose_estimate);
@@ -78,10 +75,10 @@ void CeresScanMatcher2D::Match(
 
   problem.AddResidualBlock(
       TranslationDeltaCostFunctor2D::Create(
-          translation_weight_, initial_pose_estimate.translation()),
+          kTranslationWeight, initial_pose_estimate.translation()),
       nullptr /* loss function */, ceres_pose_estimate);
   problem.AddResidualBlock(RotationDeltaCostFunctor2D::Create(
-                               rotation_weight_, ceres_pose_estimate[2]),
+                               kRotationWeight, ceres_pose_estimate[2]),
                            nullptr /* loss function */, ceres_pose_estimate);
 
   ceres::Solver::Options options;
