@@ -81,5 +81,7 @@ class LocalizationNode : public rclcpp::Node {
 
   rclcpp::TimerBase::SharedPtr timer_;
   std::unique_ptr<Localization> locator_;
+
+  std::mutex mutex_;
 };
 }  // namespace solex_robot::navigation::localization_2d

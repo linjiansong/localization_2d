@@ -41,9 +41,9 @@ struct TimedPointCloud {
 };
 using TimedPointCloudPtr = std::shared_ptr<TimedPointCloud>;
 
-class Data {
+class SensorData {
  public:
-  Data(const double timestamp, const DataType data_type)
+  SensorData(const double timestamp, const DataType data_type)
       : timestamp_(timestamp), data_type_(data_type) {}
 
   double timestamp() const { return timestamp_; }
@@ -54,9 +54,9 @@ class Data {
   const DataType data_type_;
 };
 
-class LaserData final : public Data {
+class LaserData final : public SensorData {
  public:
-  LaserData(const double timestamp) : Data(timestamp, DataType::kLaserData) {}
+  LaserData(const double timestamp) : SensorData(timestamp, DataType::kLaserData) {}
 
   const std::vector<TimedPointCloudPtr>& points() const { return points_; }
   std::vector<TimedPointCloudPtr>* mutable_points() { return &points_; }
@@ -66,9 +66,9 @@ class LaserData final : public Data {
 };
 
 // Imu data
-class ImuData final : public Data {
+class ImuData final : public SensorData {
  public:
-  ImuData(const double timestamp) : Data(timestamp, DataType::kImuData) {}
+  ImuData(const double timestamp) : SensorData(timestamp, DataType::kImuData) {}
 
   const transform::Rigid3d& pose() const { return pose_; }
   void set_pose(const transform::Rigid3d& pose) { pose_ = pose; }
@@ -91,11 +91,11 @@ class ImuData final : public Data {
   Eigen::Vector3d linear_acceleration_;
 };
 
-// Odometry Data
-class OdometryData final : public Data {
+// Odometry SensorData
+class OdometryData final : public SensorData {
  public:
   OdometryData(const double timestamp)
-      : Data(timestamp, DataType::kOdometryData) {}
+      : SensorData(timestamp, DataType::kOdometryData) {}
 
   const transform::Rigid3d& pose() const { return pose_; }
   void set_pose(const transform::Rigid3d& pose) { pose_ = pose; }

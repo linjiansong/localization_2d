@@ -93,16 +93,29 @@ void PoseExtrapolator::AddPose(const double timestamp,
 }
 
 void PoseExtrapolator::AddImuData(const sensor::ImuData& imu_data) {
-  CHECK(timed_pose_queue_.empty() ||
-        imu_data.timestamp() >= timed_pose_queue_.back().timestamp);
+  // CHECK(timed_pose_queue_.empty() ||
+  //       imu_data.timestamp() >= timed_pose_queue_.back().timestamp);
+  if (!timed_pose_queue_.empty() &&
+      imu_data.timestamp() < timed_pose_queue_.back().timestamp) {
+    // Todo:
+    LOG(ERROR) << "imu_data earlier than pose data.";
+    return;
+  }
+
   imu_data_.push_back(imu_data);
   TrimImuData();
 }
 
 void PoseExtrapolator::AddOdometryData(
     const sensor::OdometryData& odometry_data) {
-  CHECK(timed_pose_queue_.empty() ||
-        odometry_data.timestamp() >= timed_pose_queue_.back().timestamp);
+  if (timed_pose_queue_.empty() &&
+      odometry_data.timestamp() < timed_pose_queue_.back().timestamp) {
+    LOG(ERROR) << "odometry_data earlier than  timed_pose_queue_.back()";
+    return;
+  }
+
+  // CHECK(timed_pose_queue_.empty() ||
+  //       odometry_data.timestamp() >= timed_pose_queue_.back().timestamp);
   odometry_data_.push_back(odometry_data);
   TrimOdometryData();
   if (odometry_data_.size() < 2) {
@@ -209,6 +222,7 @@ void PoseExtrapolator::AdvanceImuTracker(const double timestamp,
     // There is no IMU data until 'timestamp', so we advance the ImuTracker and
     // use the angular velocities from poses and fake gravity to help 2D
     // stability.
+    // 强行推进时间：虽然没有真实的IMU传感器数据，但还是把追踪器内部的时钟直接快进到了目标
     imu_tracker->Advance(timestamp);
     imu_tracker->AddImuLinearAccelerationObservation(Eigen::Vector3d::UnitZ());
     imu_tracker->AddImuAngularVelocityObservation(
@@ -217,16 +231,19 @@ void PoseExtrapolator::AdvanceImuTracker(const double timestamp,
     return;
   }
 
+  // 快进到IMU数据的起点：为了让追踪器能够无缝衔接并消化接下来的真实IMU数据
   if (imu_tracker->timestamp() < imu_data_.front().timestamp()) {
     // Advance to the beginning of 'imu_data_'.
     imu_tracker->Advance(imu_data_.front().timestamp());
   }
 
+  // 找到第一个时间戳大于或等于当前imu_tracker->timestamp()的IMU数据
   auto imu_iter = std::lower_bound(
       imu_data_.begin(), imu_data_.end(), imu_tracker->timestamp(),
       [](const sensor::ImuData& imu_data, const double& timestamp) {
         return imu_data.timestamp() < timestamp;
       });
+  // 使用IMU积分, 通过IMU数据推算到到当前时间下
   while (imu_iter != imu_data_.end() && imu_iter->timestamp() < timestamp) {
     imu_tracker->Advance(imu_iter->timestamp());
     imu_tracker->AddImuLinearAccelerationObservation(
@@ -240,7 +257,12 @@ void PoseExtrapolator::AdvanceImuTracker(const double timestamp,
 Eigen::Quaterniond PoseExtrapolator::ExtrapolateRotation(
     const double timestamp, ImuTracker* const imu_tracker) const {
   CHECK_NOTNULL(imu_tracker);
-  CHECK_GE(timestamp, imu_tracker->timestamp());
+  // CHECK_GE(timestamp, imu_tracker->timestamp()); // Todo
+  if (timestamp < imu_tracker->timestamp()) {
+    LOG(INFO) << "timestamp less than imu_tracker->timestamp():" << timestamp
+              << " < " << imu_tracker->timestamp();
+    return imu_tracker_->orientation();
+  }
 
   AdvanceImuTracker(timestamp, imu_tracker);
   const Eigen::Quaterniond last_orientation = imu_tracker_->orientation();

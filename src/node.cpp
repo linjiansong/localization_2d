@@ -69,7 +69,7 @@ LocalizationNode::LocalizationNode() : rclcpp::Node("sensor_subscriber_node") {
 
   // 订阅IMU
   imu_subscriber_ = this->create_subscription<sensor_msgs::msg::Imu>(
-      "imu_data", qos, [this](const sensor_msgs::msg::Imu::SharedPtr msg) {
+      "/imu/data", qos, [this](const sensor_msgs::msg::Imu::SharedPtr msg) {
         this->HandleImuMessage(msg);
       });
 
@@ -116,11 +116,14 @@ LocalizationNode::LocalizationNode() : rclcpp::Node("sensor_subscriber_node") {
 
 void LocalizationNode::HandleScanMessage(
     const sensor_msgs::msg::LaserScan::SharedPtr msg) {
+  CHECK_NOTNULL(msg);
+  std::unique_lock<std::mutex> lock(mutex_);
+
   static Eigen::Isometry3d laser_to_base_transform =
       Eigen::Isometry3d::Identity();
-  static bool tf_initialized = false;
+  static bool laser_to_base_tf_initialized = false;
 
-  if (!tf_initialized) {
+  if (!laser_to_base_tf_initialized) {
     try {
       geometry_msgs::msg::TransformStamped transform_stamped;
       transform_stamped = tf_buffer_->lookupTransform(
@@ -129,8 +132,8 @@ void LocalizationNode::HandleScanMessage(
 
       laser_to_base_transform =
           tf2::transformToEigen(transform_stamped.transform);
-      tf_initialized = true;
-      LOG(INFO) << "Successfully obtained laser to base_link TF!";
+      laser_to_base_tf_initialized = true;
+      LOG(INFO) << "Successfully obtained laser to base_link TF.";
       LOG(INFO) << "laser_to_base_transform matrix =\n"
                 << laser_to_base_transform.matrix();
     } catch (tf2::TransformException& ex) {
@@ -179,6 +182,7 @@ void LocalizationNode::HandleScanMessage(
 void LocalizationNode::HandleOdometryMessage(
     const nav_msgs::msg::Odometry::SharedPtr msg) {
   CHECK_NOTNULL(msg);
+  std::unique_lock<std::mutex> lock(mutex_);
 
   const transform::Rigid3d eigen_pose = transform::Rigid3d(
       Eigen::Vector3d(msg->pose.pose.position.x, msg->pose.pose.position.y,
@@ -194,7 +198,48 @@ void LocalizationNode::HandleOdometryMessage(
 }
 
 void LocalizationNode::HandleImuMessage(
-    const sensor_msgs::msg::Imu::SharedPtr msg) {}
+    const sensor_msgs::msg::Imu::SharedPtr msg) {
+  CHECK_NOTNULL(msg);
+  std::unique_lock<std::mutex> lock(mutex_);
+
+  static Eigen::Isometry3d imu_to_base_transform =
+      Eigen::Isometry3d::Identity();
+  static bool imu_to_base_tf_initialized = false;
+
+  if (!imu_to_base_tf_initialized) {
+    try {
+      geometry_msgs::msg::TransformStamped transform_stamped;
+      transform_stamped = tf_buffer_->lookupTransform(
+          "base_link", msg->header.frame_id, tf2::TimePointZero,
+          tf2::durationFromSec(1.0));
+
+      imu_to_base_transform =
+          tf2::transformToEigen(transform_stamped.transform);
+      imu_to_base_tf_initialized = true;
+      LOG(INFO) << "Successfully obtained imu to base_link TF.";
+      LOG(INFO) << "imu_to_base_transform matrix =\n"
+                << imu_to_base_transform.matrix();
+    } catch (tf2::TransformException& ex) {
+      LOG(ERROR) << "Could not get transform from " << msg->header.frame_id
+                 << "to base_link";
+      return;  // 如果还没获取到TF，暂时跳过该帧
+    }
+  }
+
+  const Eigen::Vector3d angular_velocity(msg->angular_velocity.x,
+                                         msg->angular_velocity.y,
+                                         msg->angular_velocity.z);
+  const Eigen::Vector3d linear_acceleration(msg->linear_acceleration.x,
+                                            msg->linear_acceleration.y,
+                                            msg->linear_acceleration.z);
+
+  sensor::ImuData imu_data(rclcpp::Time(msg->header.stamp).seconds());
+  imu_data.set_angular_velocity(imu_to_base_transform.rotation() *
+                                angular_velocity);
+  imu_data.set_linear_acceleration(imu_to_base_transform.rotation() *
+                                   linear_acceleration);
+  locator_->AddImuData(imu_data);
+}
 
 void LocalizationNode::HandleInitialposeMessage(
     const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {

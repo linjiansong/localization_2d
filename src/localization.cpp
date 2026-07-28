@@ -145,52 +145,6 @@ void Localization::Track(const sensor::LaserData& laser_data) {
       << "Track takes "
       << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()
       << "ms";
-
-  // {
-  //   static auto debug_node = rclcpp::Node::make_shared("submap_debug_node");
-  //   static auto submap_pub =
-  //       debug_node->create_publisher<sensor_msgs::msg::PointCloud2>(
-  //           "map_points", 10);
-  //   auto convert_to_ros = [](const std::vector<Eigen::Vector3d>& points) {
-  //     pcl::PointCloud<pcl::PointXYZ> cloud;
-  //     cloud.reserve(points.size());
-  //     for (const Eigen::Vector3d& point : points) {
-  //       cloud.push_back(pcl::PointXYZ(point.x(), point.y(), point.z()));
-  //     }
-
-  //     sensor_msgs::msg::PointCloud2 msg;
-  //     pcl::toROSMsg(cloud, msg);
-  //     msg.header.stamp = debug_node->now();
-  //     msg.header.frame_id = "map";  // 必须和你的 Rviz Global Frame 保持一致
-  //     return msg;
-  //   };
-
-  //   submap_pub->publish(
-  //       convert_to_ros(local_map_builder_->map_points()));  // 地图上的匹配点
-  // }
-
-  // {
-  //   static auto debug_node = rclcpp::Node::make_shared("submap_debug_node");
-  //   static auto submap_pub =
-  //       debug_node->create_publisher<sensor_msgs::msg::PointCloud2>(
-  //           "map_points", 10);
-  //   auto convert_to_ros = [](const std::vector<Eigen::Vector3d>& points) {
-  //     pcl::PointCloud<pcl::PointXYZ> cloud;
-  //     cloud.reserve(points.size());
-  //     for (const Eigen::Vector3d& point : points) {
-  //       cloud.push_back(pcl::PointXYZ(point.x(), point.y(), point.z()));
-  //     }
-
-  //     sensor_msgs::msg::PointCloud2 msg;
-  //     pcl::toROSMsg(cloud, msg);
-  //     msg.header.stamp = debug_node->now();
-  //     msg.header.frame_id = "map";  // 必须和你的 Rviz Global Frame 保持一致
-  //     return msg;
-  //   };
-
-  //   submap_pub->publish(
-  //       convert_to_ros(local_map_builder_->map_points()));  // 地图上的匹配点
-  // }
 }
 
 void Localization::DistordPointCloud(const sensor::LaserData& laser_data) {
@@ -339,9 +293,9 @@ void Localization::AddInitialPose(const Eigen::Matrix4d& initial_pose) {
 }
 
 void Localization::AddImuData(const sensor::ImuData& imu_data) {
-  // if (pose_extrapolator_ != nullptr) {
-  //   pose_extrapolator_->AddImuData(imu_data);
-  // }
+  if (pose_extrapolator_ != nullptr) {
+    pose_extrapolator_->AddImuData(imu_data);
+  }
 }
 
 void Localization::AddOdometryData(const sensor::OdometryData& odometry_data) {

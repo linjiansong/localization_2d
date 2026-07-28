@@ -73,7 +73,6 @@ class Localization {
 
  private:
   std::shared_ptr<ProbabilityGrid> probability_grid_;
-
   std::shared_ptr<LocalMapBuilder> local_map_builder_;
   std::shared_ptr<PoseExtrapolator> pose_extrapolator_;
   std::shared_ptr<PoseGraph> pose_graph_;
