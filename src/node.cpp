@@ -43,6 +43,8 @@
 
 namespace solex_robot::navigation::localization_2d {
 namespace {
+constexpr double kSecondToNanoSecond = 1.e9;
+
 Eigen::Vector3d TransformPoint(const Eigen::Matrix4d& transform,
                                const Eigen::Vector3d& point) {
   return transform.block<3, 3>(0, 0) * point + transform.block<3, 1>(0, 3);
@@ -139,6 +141,7 @@ void LocalizationNode::HandleScanMessage(
   }
 
   const double start_time = rclcpp::Time(msg->header.stamp).seconds();
+
   std::vector<sensor::TimedPointCloudPtr> timed_points;
   timed_points.reserve(msg->ranges.size());
   for (size_t i = 0; i < msg->ranges.size(); ++i) {
@@ -338,7 +341,13 @@ void LocalizationNode::PublishRobotPose() {
 }
 
 void LocalizationNode::PublishTransform() {
-  const rclcpp::Time current_time = this->now();
+  const auto result = locator_->GetLatestPose2();
+  if (result.first < 0.1) {
+    return;
+  }
+
+  const rclcpp::Time current_time =
+      rclcpp::Time(result.first * kSecondToNanoSecond);
 
   // ==================== map -> odom ====================
   geometry_msgs::msg::TransformStamped map_to_odom;
@@ -356,7 +365,7 @@ void LocalizationNode::PublishTransform() {
   odom_to_base.child_frame_id = "base_link";
   Eigen::Matrix4d odom_pose = Eigen::Matrix4d::Identity();
   odom_to_base.transform =
-      tf2::eigenToTransform(Eigen::Affine3d(locator_->GetLatestPose())).transform;
+      tf2::eigenToTransform(Eigen::Affine3d(result.second)).transform;
   tf_broadcaster_->sendTransform(odom_to_base);
 }
 

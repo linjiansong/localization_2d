@@ -54,6 +54,7 @@ class Localization {
   void Init();
 
   const Eigen::Matrix4d GetLatestPose();
+  const std::pair<double, Eigen::Matrix4d> GetLatestPose2();
 
  private:
   void DistordPointCloud(const sensor::LaserData& laser_data);

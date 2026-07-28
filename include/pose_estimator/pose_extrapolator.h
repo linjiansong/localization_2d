@@ -68,7 +68,13 @@ class PoseExtrapolator {
   // the tracking frame into a gravity aligned frame.
   Eigen::Quaterniond EstimateGravityOrientation(double time);
 
-  const transform::Rigid3d& latest_pose() { return cached_extrapolated_pose_.pose; }
+  const transform::Rigid3d& latest_pose() {
+    return cached_extrapolated_pose_.pose;
+  }
+
+  const TimedPose& cached_extrapolated_pose() {
+    return cached_extrapolated_pose_;
+  }
 
  private:
   void UpdateVelocitiesFromPoses();
