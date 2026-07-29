@@ -55,7 +55,6 @@ class LocalizationNode : public rclcpp::Node {
       const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg);
   void HandleGridMapMessage(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
 
-  void PublishPointCloud();
   void PublishTransform();
   void PublishRobotPose();
 

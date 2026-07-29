@@ -100,7 +100,7 @@ void CeresScanMatcher2D::Match(
   *pose_estimate = transform::Rigid2d(
       {ceres_pose_estimate[0], ceres_pose_estimate[1]}, ceres_pose_estimate[2]);
 
-  // 计算最终的匹配得分[add for localization]
+  // 计算最终的匹配得分
   {
     const MapLimits& map_limits = probability_grid->map_limits();
 

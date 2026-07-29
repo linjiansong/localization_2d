@@ -84,16 +84,13 @@ void PoseGraph::ComputeLocalConstraint(
   real_time_correlative_scan_matcher_->Match(
       initial_pose_estimate, constraint_data->points, &real_time_pose_estimate,
       &real_time_score);
-  LOG(INFO) << "++++++++++++++++++++++++++ real time = " << real_time_score;
 
   float ceres_match_score = real_time_score;
   transform::Rigid2d ceres_pose_estimate = real_time_pose_estimate;
   // float ceres_match_score = 0.0;
   // transform::Rigid2d ceres_pose_estimate;
-  // ceres_scan_matcher_->Match(real_time_pose_estimate, points,
-  // probability_grid_,
+  // ceres_scan_matcher_->Match(real_time_pose_estimate, constraint_data->points, probability_grid_,
   //                            &ceres_pose_estimate, &ceres_match_score);
-  // LOG(INFO) << "-------------------------- ceres = " << ceres_match_score;
 
   constraint_data->global_pose = ceres_pose_estimate;
   constraint_data->global_pose_score = ceres_match_score;
@@ -160,9 +157,10 @@ void PoseGraph::ComputeGlobalConstraint(
   transform::Rigid2d ceres_pose_estimate = fast_pose_estimate;
   // float ceres_match_score = 0.0;
   // transform::Rigid2d ceres_pose_estimate;
-  // ceres_scan_matcher_->Match(fast_pose_estimate, eigen_points,
+  // ceres_scan_matcher_->Match(fast_pose_estimate, constraint_data->points,
   //                            probability_grid_, &ceres_pose_estimate,
   //                            &ceres_match_score);
+  // LOG(INFO) << "ceres_match_score = " << ceres_match_score;
 
   constraint_data->global_pose = ceres_pose_estimate;
   constraint_data->global_pose_score = ceres_match_score;

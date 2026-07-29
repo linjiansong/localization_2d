@@ -96,32 +96,6 @@ void ProbabilityGrid::PrecomputeValueToBoundedFloat() {
           kMinCorrespondenceCost, kMaxCorrespondenceCost));
     }
   }
-
-  // std::cout << "0 = "
-  //           << SlowValueToBoundedFloat(
-  //                  0, kUnknownCorrespondenceValue, kMaxCorrespondenceCost,
-  //                  kUnknownProbabilityValue, kMaxCorrespondenceCost)
-  //           << std::endl;
-
-  // std::cout << "1 = "
-  //           << SlowValueToBoundedFloat(
-  //                  1, kUnknownCorrespondenceValue, kMaxCorrespondenceCost,
-  //                  kUnknownProbabilityValue, kMaxCorrespondenceCost)
-  //           << std::endl;
-
-  // std::cout << "32767 = "
-  //           << SlowValueToBoundedFloat(
-  //                  32767, kUnknownCorrespondenceValue,
-  //                  kMaxCorrespondenceCost, kUnknownProbabilityValue,
-  //                  kMaxCorrespondenceCost)
-  //           << std::endl;
-
-  // std::cout << "16384 = "
-  //           << SlowValueToBoundedFloat(
-  //                  16384, kUnknownCorrespondenceValue,
-  //                  kMaxCorrespondenceCost, kUnknownProbabilityValue,
-  //                  kMaxCorrespondenceCost)
-  //           << std::endl;
 }
 
 // Returns the correspondence cost of the cell with 'cell_index'.

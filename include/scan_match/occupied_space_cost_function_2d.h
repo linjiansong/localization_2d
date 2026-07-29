@@ -112,7 +112,7 @@ class GridArrayAdapter {
         column >= NumCols() - kPadding) {
       *value = kMaxCorrespondenceCost;
     } else {
-      *value = static_cast<double>(probability_grid_.GetProbability(
+      *value = static_cast<double>(probability_grid_.GetCorrespondenceCost(
           Eigen::Array2i(column - kPadding, row - kPadding)));
     }
   }

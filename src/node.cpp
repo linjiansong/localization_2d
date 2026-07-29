@@ -95,18 +95,17 @@ LocalizationNode::LocalizationNode() : rclcpp::Node("sensor_subscriber_node") {
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
   point_cloud_publisher_ =
-      this->create_publisher<sensor_msgs::msg::PointCloud2>("points_raw", 10);
+      this->create_publisher<sensor_msgs::msg::PointCloud2>("points_raw", 50);
 
   pose_publisher_ =
-      this->create_publisher<geometry_msgs::msg::PoseStamped>("robot_pose", 10);
+      this->create_publisher<geometry_msgs::msg::PoseStamped>("robot_pose", 50);
 
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
   locator_ = std::make_unique<Localization>();
 
-  // 创建定时器，10Hz 发布
-  timer_ = this->create_wall_timer(std::chrono::milliseconds(100), [this]() {
-    this->PublishPointCloud();
+  // 创建定时器，50Hz 发布
+  timer_ = this->create_wall_timer(std::chrono::milliseconds(20), [this]() {
     this->PublishTransform();
     this->PublishRobotPose();
   });
@@ -331,36 +330,6 @@ void LocalizationNode::HandleGridMapMessage(
   locator_->AddGridMap(probability_grid);
 
   LOG(INFO) << "Grid map successfully loaded in locator.";
-}
-
-void LocalizationNode::PublishPointCloud() {
-  // const auto keyframe_buffer = locator_->keyframe_buffer();
-
-  // pcl::PointCloud<pcl::PointXYZI> cloud_points;
-  // for (const auto& keyframe : keyframe_buffer) {
-  //   for (const sensor::TimedPointCloud& timed_point :
-  //   keyframe->point_cloud.points) {
-  //     const Eigen::Vector3d transformed_point =
-  //         TransformPoint(keyframe->optimized_pose, timed_point.position);
-  //     pcl::PointXYZI pcl_point;
-  //     pcl_point.x = transformed_point.x();
-  //     pcl_point.y = transformed_point.y();
-  //     pcl_point.z = transformed_point.z();
-  //     pcl_point.intensity = 0.0;
-  //     cloud_points.push_back(pcl_point);
-  //   }
-  // }
-
-  // // Convert to ROS2 message
-  // sensor_msgs::msg::PointCloud2 output_msg;
-  // pcl::toROSMsg(cloud_points, output_msg);
-
-  // // Add timestamp
-  // output_msg.header.stamp = this->now();
-  // output_msg.header.frame_id = "map";
-
-  // // Publish
-  // point_cloud_publisher_->publish(output_msg);
 }
 
 void LocalizationNode::PublishRobotPose() {
