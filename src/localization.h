@@ -44,7 +44,7 @@ namespace solex_robot::navigation::localization_2d {
 class Localization {
  public:
   Localization() = default;
-  ~Localization() = default;
+  ~Localization();
 
   void AddImuData(const sensor::ImuData& imu_data);
   void AddOdometryData(const sensor::OdometryData& odometry_data);
@@ -53,8 +53,7 @@ class Localization {
   void AddInitialPose(const Eigen::Matrix4d& initial_pose);
   void Init();
 
-  const Eigen::Matrix4d GetLatestPose();
-  const std::pair<double, Eigen::Matrix4d> GetLatestPose2();
+  const Eigen::Matrix4d GetLatestPose(const double timestamp);
 
  private:
   void DistordPointCloud(const sensor::LaserData& laser_data);

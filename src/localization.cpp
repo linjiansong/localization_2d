@@ -95,6 +95,8 @@ std::vector<Eigen::Vector3d> ConvertPoint(const sensor::LaserData& laser_data) {
 }
 }  // namespace
 
+Localization::~Localization() { pose_graph_->Finish(); }
+
 void Localization::GlobalLocalization(const sensor::LaserData& laser_data) {
   CHECK_NOTNULL(pose_graph_);
   pose_graph_->Reset();
@@ -117,10 +119,15 @@ void Localization::Track(const sensor::LaserData& laser_data) {
   transform::Rigid2d local_pose_estimate;
   float local_pose_score = 0.0;
   bool is_keyframe = false;
+  // local_map_builder_->AddPointCloud(
+  //     ConvertPoint(laser_data),
+  //     transform::Project2D(
+  //         pose_extrapolator_->ExtrapolatePose(laser_data.timestamp())),
+  //     &local_pose_estimate, &local_pose_score, &is_keyframe);
+
   local_map_builder_->AddPointCloud(
       ConvertPoint(laser_data),
-      transform::Project2D(
-          pose_extrapolator_->ExtrapolatePose(laser_data.timestamp())),
+      transform::Project2D(pose_extrapolator_->cached_extrapolated_pose().pose),
       &local_pose_estimate, &local_pose_score, &is_keyframe);
 
   prev_local_pose_ = local_pose_estimate;
@@ -189,48 +196,49 @@ float Localization::CalculateMatchScore(const sensor::LaserData& laser_data) {
 
   score /= static_cast<float>(laser_data.points().size());
 
-  {
-    static int count = 0;
-    const MapLimits& map_limits = probability_grid_->map_limits();
-    const int width = map_limits.cell_limits().num_x_cells;
-    const int height = map_limits.cell_limits().num_y_cells;
+  // {
+  //   static int count = 0;
+  //   const MapLimits& map_limits = probability_grid_->map_limits();
+  //   const int width = map_limits.cell_limits().num_x_cells;
+  //   const int height = map_limits.cell_limits().num_y_cells;
 
-    cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
-    for (int y = 0; y < height; ++y) {
-      for (int x = 0; x < width; ++x) {
-        const Eigen::Array2i index(x, y);
-        const double probability = probability_grid_->GetProbability(index);
-        const uint8_t value = 255 * (1.0 - probability);
-        image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
-      }
-    }
+  //   cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
+  //   for (int y = 0; y < height; ++y) {
+  //     for (int x = 0; x < width; ++x) {
+  //       const Eigen::Array2i index(x, y);
+  //       const double probability = probability_grid_->GetProbability(index);
+  //       const uint8_t value = 255 * (1.0 - probability);
+  //       image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
+  //     }
+  //   }
 
-    if (pose_extrapolator_ == nullptr) {
-      return score;
-    }
+  //   if (pose_extrapolator_ == nullptr) {
+  //     return score;
+  //   }
 
-    const transform::Rigid2d pose_estimate2 =
-        optimized_node->optimized_pose *
-        optimized_node->constraint_data->local_pose.inverse() *
-        transform::Project2D(pose_extrapolator_->latest_pose());
+  //   const transform::Rigid2d pose_estimate2 =
+  //       optimized_node->optimized_pose *
+  //       optimized_node->constraint_data->local_pose.inverse() *
+  //       transform::Project2D(pose_extrapolator_->latest_pose());
 
-    for (const sensor::TimedPointCloudPtr& timed_point : laser_data.points()) {
-      const Eigen::Vector2d world_point =
-          pose_estimate2 * timed_point->position.head(2);
+  //   for (const sensor::TimedPointCloudPtr& timed_point : laser_data.points())
+  //   {
+  //     const Eigen::Vector2d world_point =
+  //         pose_estimate2 * timed_point->position.head(2);
 
-      const Eigen::Array2i proposed_xy_index =
-          map_limits.GetCellIndex(world_point.cast<float>());
+  //     const Eigen::Array2i proposed_xy_index =
+  //         map_limits.GetCellIndex(world_point.cast<float>());
 
-      if (map_limits.Contains(proposed_xy_index)) {
-        image.at<cv::Vec3b>(proposed_xy_index.y(), proposed_xy_index.x()) =
-            cv::Vec3b(0, 0, 255);
-      }
-    }
+  //     if (map_limits.Contains(proposed_xy_index)) {
+  //       image.at<cv::Vec3b>(proposed_xy_index.y(), proposed_xy_index.x()) =
+  //           cv::Vec3b(0, 0, 255);
+  //     }
+  //   }
 
-    cv::imwrite("/home/linjs/图片/local_match/match_" +
-                    std::to_string(count++) + ".png",
-                image);
-  }
+  //   cv::imwrite("/home/linjs/图片/local_match/match_" +
+  //                   std::to_string(count++) + ".png",
+  //               image);
+  // }
 
   return score;
 }
@@ -304,7 +312,7 @@ void Localization::AddOdometryData(const sensor::OdometryData& odometry_data) {
   }
 }
 
-const Eigen::Matrix4d Localization::GetLatestPose() {
+const Eigen::Matrix4d Localization::GetLatestPose(const double timestamp) {
   if (pose_graph_ == nullptr || pose_extrapolator_ == nullptr) {
     return Eigen::Matrix4d::Identity();
   }
@@ -317,30 +325,8 @@ const Eigen::Matrix4d Localization::GetLatestPose() {
   const transform::Rigid2d pose_estimate =
       optimized_node->optimized_pose *
       optimized_node->constraint_data->local_pose.inverse() *
-      transform::Project2D(pose_extrapolator_->latest_pose());
+      transform::Project2D(pose_extrapolator_->ExtrapolatePose(timestamp));
 
   return ToMatrix4d(pose_estimate);
-}
-
-const std::pair<double, Eigen::Matrix4d> Localization::GetLatestPose2() {
-  if (pose_graph_ == nullptr || pose_extrapolator_ == nullptr) {
-    return std::make_pair(0.0, Eigen::Matrix4d::Identity());
-  }
-
-  NodePtr optimized_node = pose_graph_->optimized_node();
-  if (optimized_node == nullptr) {
-    return std::make_pair(0.0, Eigen::Matrix4d::Identity());
-  }
-
-  const TimedPose& cached_extrapolated_pose =
-      pose_extrapolator_->cached_extrapolated_pose();
-
-  const transform::Rigid2d pose_estimate =
-      optimized_node->optimized_pose *
-      optimized_node->constraint_data->local_pose.inverse() *
-      transform::Project2D(cached_extrapolated_pose.pose);
-
-  return std::make_pair(cached_extrapolated_pose.timestamp,
-                        ToMatrix4d(pose_estimate));
 }
 }  // namespace solex_robot::navigation::localization_2d

@@ -44,11 +44,6 @@
 namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr double kSecondToNanoSecond = 1.e9;
-
-Eigen::Vector3d TransformPoint(const Eigen::Matrix4d& transform,
-                               const Eigen::Vector3d& point) {
-  return transform.block<3, 3>(0, 0) * point + transform.block<3, 1>(0, 3);
-}
 }  // namespace
 
 LocalizationNode::LocalizationNode() : rclcpp::Node("sensor_subscriber_node") {
@@ -201,6 +196,9 @@ void LocalizationNode::HandleImuMessage(
   CHECK_NOTNULL(msg);
   std::unique_lock<std::mutex> lock(mutex_);
 
+  // LOG(INFO) << "delta time = " << this->now().seconds() -
+  // rclcpp::Time(msg->header.stamp).seconds();
+
   static Eigen::Isometry3d imu_to_base_transform =
       Eigen::Isometry3d::Identity();
   static bool imu_to_base_tf_initialized = false;
@@ -333,10 +331,12 @@ void LocalizationNode::HandleGridMapMessage(
 }
 
 void LocalizationNode::PublishRobotPose() {
-  const Eigen::Matrix4d curr_pose = locator_->GetLatestPose();
+  const rclcpp::Time current_time = this->now();
+  const Eigen::Matrix4d curr_pose =
+      locator_->GetLatestPose(current_time.seconds());
 
   geometry_msgs::msg::PoseStamped pose_msg;
-  pose_msg.header.stamp = this->now();
+  pose_msg.header.stamp = current_time;
   pose_msg.header.frame_id = "map";
 
   pose_msg.pose.position.x = curr_pose(0, 3);
@@ -355,13 +355,9 @@ void LocalizationNode::PublishRobotPose() {
 }
 
 void LocalizationNode::PublishTransform() {
-  const auto result = locator_->GetLatestPose2();
-  if (result.first < 0.1) {
-    return;
-  }
-
-  const rclcpp::Time current_time =
-      rclcpp::Time(result.first * kSecondToNanoSecond);
+  const rclcpp::Time current_time = this->now();
+  const Eigen::Matrix4d curr_pose =
+      locator_->GetLatestPose(current_time.seconds());
 
   // ==================== map -> odom ====================
   geometry_msgs::msg::TransformStamped map_to_odom;
@@ -369,7 +365,7 @@ void LocalizationNode::PublishTransform() {
   map_to_odom.header.frame_id = "map";
   map_to_odom.child_frame_id = "odom";
   map_to_odom.transform =
-      tf2::eigenToTransform(Eigen::Affine3d::Identity()).transform;
+      tf2::eigenToTransform(Eigen::Affine3d(curr_pose)).transform;
   tf_broadcaster_->sendTransform(map_to_odom);
 
   // ================= odom -> base_link =================
@@ -377,9 +373,8 @@ void LocalizationNode::PublishTransform() {
   odom_to_base.header.stamp = current_time;
   odom_to_base.header.frame_id = "odom";
   odom_to_base.child_frame_id = "base_link";
-  Eigen::Matrix4d odom_pose = Eigen::Matrix4d::Identity();
   odom_to_base.transform =
-      tf2::eigenToTransform(Eigen::Affine3d(result.second)).transform;
+      tf2::eigenToTransform(Eigen::Affine3d::Identity()).transform;
   tf_broadcaster_->sendTransform(odom_to_base);
 }
 
