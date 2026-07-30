@@ -89,7 +89,8 @@ void PoseGraph::ComputeLocalConstraint(
   transform::Rigid2d ceres_pose_estimate = real_time_pose_estimate;
   // float ceres_match_score = 0.0;
   // transform::Rigid2d ceres_pose_estimate;
-  // ceres_scan_matcher_->Match(real_time_pose_estimate, constraint_data->points, probability_grid_,
+  // ceres_scan_matcher_->Match(real_time_pose_estimate,
+  // constraint_data->points, probability_grid_,
   //                            &ceres_pose_estimate, &ceres_match_score);
 
   constraint_data->global_pose = ceres_pose_estimate;
@@ -180,7 +181,7 @@ void PoseGraph::TrimNodeBuffer() {
 }
 
 void PoseGraph::GlobalOptimize() {
-  LOG(INFO) << "Global optimize...";
+  const auto t0 = std::chrono::steady_clock::now();
 
   std::vector<NodePtr> nodes;
   {
@@ -266,6 +267,12 @@ void PoseGraph::GlobalOptimize() {
     std::unique_lock<std::mutex> buffer_lock(optimized_node_mutex_);
     optimized_node_ = nodes.back();
   }
+
+  const auto t1 = std::chrono::steady_clock::now();
+  LOG(INFO)
+      << "Global optimization takes "
+      << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()
+      << "ms";
 }
 
 void PoseGraph::Init() {

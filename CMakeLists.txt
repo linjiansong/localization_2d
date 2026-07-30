@@ -7,6 +7,7 @@ if(NOT CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 17)
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the build type." FORCE)
 
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)

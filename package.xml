@@ -4,7 +4,7 @@
   <name>localization_2d</name>
   <version>0.0.0</version>
   <description>2D localization using laser scan matching and graph optimization</description>
-  <maintainer email="info@solexrobot.com">Solex Robot</maintainer>
+  <maintainer email="linjs@solexrobot.com">Solex Robot</maintainer>
   <license>Proprietary</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

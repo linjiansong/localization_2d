@@ -206,75 +206,19 @@ constexpr int kMaxPointCloudSize =
     20;  // 增大子图历史帧数，由纯帧间匹配改为Scan-to-Submap
 }  // namespace
 
-transform::Rigid2d ICPAligner::ComputeTransformation2D(
-    const std::vector<Eigen::Vector2d>& source_points,
-    const std::vector<Eigen::Vector2d>& target_points) const {
-  if (source_points.empty() || target_points.empty() ||
-      source_points.size() != target_points.size()) {
-    return transform::Rigid2d::Identity();
-  }
-
-  // 1. 初始化优化变量：平移 (tx, ty) 和 旋转角度 (yaw)
-  double translation_array[2] = {0.0, 0.0};
-  double yaw_angle = 0.0;
-
-  // 如果有上一轮的粗略估计或者可以先通过质心对齐给个初始平移
-  Eigen::Vector2d source_mean = Eigen::Vector2d::Zero();
-  Eigen::Vector2d target_mean = Eigen::Vector2d::Zero();
-  for (size_t i = 0; i < source_points.size(); ++i) {
-    source_mean += source_points[i];
-    target_mean += target_points[i];
-  }
-  source_mean /= source_points.size();
-  target_mean /= source_points.size();
-
-  // 用质心差作为平移的初始猜测，有助于加速收敛
-  Eigen::Vector2d init_trans = target_mean - source_mean;
-  translation_array[0] = init_trans.x();
-  translation_array[1] = init_trans.y();
-
-  // 2. 构建 Ceres 优化问题
-  ceres::Problem problem;
-
-  // 可选：引入 Huber 鲁棒核函数，防止个别错配点拉偏整体位姿
-  ceres::LossFunction* loss_function = new ceres::HuberLoss(0.1);
-
-  for (size_t i = 0; i < source_points.size(); ++i) {
-    ceres::CostFunction* cost_function =
-        ICP2DCostFunction::Create(source_points[i], target_points[i]);
-
-    problem.AddResidualBlock(cost_function, loss_function, translation_array,
-                             &yaw_angle);
-  }
-
-  // 3. 配置 Ceres 求解器参数
-  ceres::Solver::Options options;
-  options.linear_solver_type = ceres::DENSE_QR;
-  options.max_num_iterations = 30;
-  options.minimizer_progress_to_stdout = false;
-  options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-
-  // 4. 执行优化
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, &problem, &summary);
-
-  // 5. 将优化结果转换为 transform::Rigid2d
-  Eigen::Vector2d final_translation(translation_array[0], translation_array[1]);
-  Eigen::Rotation2Dd final_rotation(yaw_angle);
-
-  return transform::Rigid2d(final_translation, final_rotation);
-}
-
-// SVD计算两个点云之间的最佳旋转平移矩阵(Kabsch 算法)
 // transform::Rigid2d ICPAligner::ComputeTransformation2D(
 //     const std::vector<Eigen::Vector2d>& source_points,
 //     const std::vector<Eigen::Vector2d>& target_points) const {
-//   if (source_points.empty() || target_points.empty() || source_points.size()
-//   != target_points.size()) {
+//   if (source_points.empty() || target_points.empty() ||
+//       source_points.size() != target_points.size()) {
 //     return transform::Rigid2d::Identity();
 //   }
 
-//   // 1. 计算质心
+//   // 1. 初始化优化变量：平移 (tx, ty) 和 旋转角度 (yaw)
+//   double translation_array[2] = {0.0, 0.0};
+//   double yaw_angle = 0.0;
+
+//   // 如果有上一轮的粗略估计或者可以先通过质心对齐给个初始平移
 //   Eigen::Vector2d source_mean = Eigen::Vector2d::Zero();
 //   Eigen::Vector2d target_mean = Eigen::Vector2d::Zero();
 //   for (size_t i = 0; i < source_points.size(); ++i) {
@@ -282,37 +226,93 @@ transform::Rigid2d ICPAligner::ComputeTransformation2D(
 //     target_mean += target_points[i];
 //   }
 //   source_mean /= source_points.size();
-//   target_mean /= target_points.size();
+//   target_mean /= source_points.size();
 
-//   // 2. 去质心坐标
-//   Eigen::MatrixXd new_source_points(2, source_points.size());
-//   Eigen::MatrixXd new_target_points(2, target_points.size());
+//   // 用质心差作为平移的初始猜测，有助于加速收敛
+//   Eigen::Vector2d init_trans = target_mean - source_mean;
+//   translation_array[0] = init_trans.x();
+//   translation_array[1] = init_trans.y();
+
+//   // 2. 构建 Ceres 优化问题
+//   ceres::Problem problem;
+
+//   // 可选：引入 Huber 鲁棒核函数，防止个别错配点拉偏整体位姿
+//   ceres::LossFunction* loss_function = new ceres::HuberLoss(0.1);
+
 //   for (size_t i = 0; i < source_points.size(); ++i) {
-//     new_source_points.col(i) = source_points[i] - source_mean;
-//     new_target_points.col(i) = target_points[i] - target_mean;
+//     ceres::CostFunction* cost_function =
+//         ICP2DCostFunction::Create(source_points[i], target_points[i]);
+
+//     problem.AddResidualBlock(cost_function, loss_function, translation_array,
+//                              &yaw_angle);
 //   }
 
-//   // 3. 计算协方差矩阵 matrix_h
-//   const Eigen::Matrix2d matrix_h =
-//       new_source_points * new_target_points.transpose();
+//   // 3. 配置 Ceres 求解器参数
+//   ceres::Solver::Options options;
+//   options.linear_solver_type = ceres::DENSE_QR;
+//   options.max_num_iterations = 30;
+//   options.minimizer_progress_to_stdout = false;
+//   options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
 
-//   // 4. SVD分解
-//   Eigen::JacobiSVD<Eigen::Matrix2d> svd(
-//       matrix_h, Eigen::ComputeFullU | Eigen::ComputeFullV);
-//   Eigen::Matrix2d rotation = svd.matrixV() * svd.matrixU().transpose();
+//   // 4. 执行优化
+//   ceres::Solver::Summary summary;
+//   ceres::Solve(options, &problem, &summary);
 
-//   // 5. 处理反射情况(2D 中行列式必须为1，否则就是镜像)
-//   if (rotation.determinant() < 0) {
-//     Eigen::Matrix2d matrix_v = svd.matrixV();
-//     matrix_v.col(1) *= -1;  // 翻转最后一列
-//     rotation = matrix_v * svd.matrixU().transpose();
-//   }
+//   // 5. 将优化结果转换为 transform::Rigid2d
+//   Eigen::Vector2d final_translation(translation_array[0], translation_array[1]);
+//   Eigen::Rotation2Dd final_rotation(yaw_angle);
 
-//   // 6. 计算平移
-//   const Eigen::Vector2d translation = target_mean - rotation * source_mean;
-
-//   return transform::Rigid2d(translation, Eigen::Rotation2Dd(rotation));
+//   return transform::Rigid2d(final_translation, final_rotation);
 // }
+
+// SVD计算两个点云之间的最佳旋转平移矩阵(Kabsch 算法)
+transform::Rigid2d ICPAligner::ComputeTransformation2D(
+    const std::vector<Eigen::Vector2d>& source_points,
+    const std::vector<Eigen::Vector2d>& target_points) const {
+  if (source_points.empty() || target_points.empty() || source_points.size()
+  != target_points.size()) {
+    return transform::Rigid2d::Identity();
+  }
+
+  // 1. 计算质心
+  Eigen::Vector2d source_mean = Eigen::Vector2d::Zero();
+  Eigen::Vector2d target_mean = Eigen::Vector2d::Zero();
+  for (size_t i = 0; i < source_points.size(); ++i) {
+    source_mean += source_points[i];
+    target_mean += target_points[i];
+  }
+  source_mean /= source_points.size();
+  target_mean /= target_points.size();
+
+  // 2. 去质心坐标
+  Eigen::MatrixXd new_source_points(2, source_points.size());
+  Eigen::MatrixXd new_target_points(2, target_points.size());
+  for (size_t i = 0; i < source_points.size(); ++i) {
+    new_source_points.col(i) = source_points[i] - source_mean;
+    new_target_points.col(i) = target_points[i] - target_mean;
+  }
+
+  // 3. 计算协方差矩阵 matrix_h
+  const Eigen::Matrix2d matrix_h =
+      new_source_points * new_target_points.transpose();
+
+  // 4. SVD分解
+  Eigen::JacobiSVD<Eigen::Matrix2d> svd(
+      matrix_h, Eigen::ComputeFullU | Eigen::ComputeFullV);
+  Eigen::Matrix2d rotation = svd.matrixV() * svd.matrixU().transpose();
+
+  // 5. 处理反射情况(2D 中行列式必须为1，否则就是镜像)
+  if (rotation.determinant() < 0) {
+    Eigen::Matrix2d matrix_v = svd.matrixV();
+    matrix_v.col(1) *= -1;  // 翻转最后一列
+    rotation = matrix_v * svd.matrixU().transpose();
+  }
+
+  // 6. 计算平移
+  const Eigen::Vector2d translation = target_mean - rotation * source_mean;
+
+  return transform::Rigid2d(translation, Eigen::Rotation2Dd(rotation));
+}
 
 void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
                        const transform::Rigid2d& initial_pose,
