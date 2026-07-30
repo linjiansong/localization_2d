@@ -196,14 +196,12 @@ namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr double kRadianToDegree = 180.0 / M_PI;
 constexpr int kICPMaxIterations = 50;
-constexpr double kICPMaxInlierDistance =
-    1.0;  // 减小最大匹配距离，避免错误匹配拉偏角度 (原为10.0)
-constexpr double kICPMinInlierRatio = 0.3;  // 适当降低内点比例阈值
-constexpr double kICPMinDistance = 1.e-4;   // meter
-constexpr double kICPMinAngle = 0.01;       // degree
+constexpr double kICPMaxInlierDistance = 1.0;  // meter
+constexpr double kICPMinInlierRatio = 0.3;
+constexpr double kICPMinDistance = 1.e-4;  // meter
+constexpr double kICPMinAngle = 0.01;      // degree
 
-constexpr int kMaxPointCloudSize =
-    20;  // 增大子图历史帧数，由纯帧间匹配改为Scan-to-Submap
+constexpr int kMaxPointCloudSize = 1;
 }  // namespace
 
 // transform::Rigid2d ICPAligner::ComputeTransformation2D(
@@ -259,8 +257,8 @@ constexpr int kMaxPointCloudSize =
 //   ceres::Solve(options, &problem, &summary);
 
 //   // 5. 将优化结果转换为 transform::Rigid2d
-//   Eigen::Vector2d final_translation(translation_array[0], translation_array[1]);
-//   Eigen::Rotation2Dd final_rotation(yaw_angle);
+//   Eigen::Vector2d final_translation(translation_array[0],
+//   translation_array[1]); Eigen::Rotation2Dd final_rotation(yaw_angle);
 
 //   return transform::Rigid2d(final_translation, final_rotation);
 // }
@@ -269,8 +267,8 @@ constexpr int kMaxPointCloudSize =
 transform::Rigid2d ICPAligner::ComputeTransformation2D(
     const std::vector<Eigen::Vector2d>& source_points,
     const std::vector<Eigen::Vector2d>& target_points) const {
-  if (source_points.empty() || target_points.empty() || source_points.size()
-  != target_points.size()) {
+  if (source_points.empty() || target_points.empty() ||
+      source_points.size() != target_points.size()) {
     return transform::Rigid2d::Identity();
   }
 
@@ -320,7 +318,7 @@ void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
   CHECK_NOTNULL(pose_estimate);
   CHECK_NOTNULL(score);
   CHECK_NOTNULL(search_tree_);
-  
+
   if (point_cloud.empty()) {
     *pose_estimate = initial_pose;
     *score = 0.0;
@@ -486,7 +484,7 @@ void ICPAligner::AddPointCloud(
   for (const auto& cloud : point_cloud_list_) {
     for (const Eigen::Vector3d& point : cloud) {
       if (!point.allFinite()) {
-        LOG(INFO) << "point = " << point.transpose(); 
+        LOG(INFO) << "point = " << point.transpose();
       }
 
       points_2d.emplace_back(point.head(2));

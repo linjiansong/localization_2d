@@ -194,6 +194,7 @@ void LocalizationNode::HandleOdometryMessage(
 void LocalizationNode::HandleImuMessage(
     const sensor_msgs::msg::Imu::SharedPtr msg) {
   CHECK_NOTNULL(msg);
+
   std::unique_lock<std::mutex> lock(mutex_);
 
   // LOG(INFO) << "delta time = " << this->now().seconds() -

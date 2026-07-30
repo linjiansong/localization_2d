@@ -104,6 +104,11 @@ void Localization::GlobalLocalization(const sensor::LaserData& laser_data) {
   pose_graph_->AddGlobalConstraint(laser_data.timestamp(),
                                    ConvertPoint(laser_data));
 
+  local_map_builder_ = std::make_shared<LocalMapBuilder>();
+  pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
+  pose_extrapolator_->AddPose(laser_data.timestamp(),
+                              transform::Rigid3d::Identity());
+
   localization_status_ = LocalizationStatus::kInitialization;  // reset
 }
 
@@ -245,6 +250,12 @@ float Localization::CalculateMatchScore(const sensor::LaserData& laser_data) {
 
 void Localization::AddLaserData(const sensor::LaserData& laser_data) {
   switch (localization_status_) {
+    case LocalizationStatus::kInitialization:
+    case LocalizationStatus::kSuccess: {
+      Track(laser_data);
+      break;
+    }
+
     case LocalizationStatus::kGlobalLocalization: {
       GlobalLocalization(laser_data);
       break;
@@ -252,11 +263,6 @@ void Localization::AddLaserData(const sensor::LaserData& laser_data) {
 
     case LocalizationStatus::kRelocalization: {
       Relocalization(laser_data);
-      break;
-    }
-
-    case LocalizationStatus::kSuccess: {
-      Track(laser_data);
       break;
     }
 
@@ -268,10 +274,6 @@ void Localization::AddLaserData(const sensor::LaserData& laser_data) {
   const float score = CalculateMatchScore(laser_data);
   if (localization_status_ == LocalizationStatus::kInitialization &&
       score > 0.3) {
-    local_map_builder_ = std::make_shared<LocalMapBuilder>();
-    pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
-    pose_extrapolator_->AddPose(laser_data.timestamp(),
-                                transform::Rigid3d::Identity());
     localization_status_ = LocalizationStatus::kSuccess;
     LOG(INFO) << "Localize successed, score = " << score;
   }

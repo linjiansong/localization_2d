@@ -36,7 +36,7 @@ constexpr double kKeyframeMinAngle = 2.0;     // degree
 
 bool LocalMapBuilder::IsKeyframe(const transform::Rigid2d& current_pose) {
   const transform::Rigid2d delta_pose =
-      last_keyfframe_pose_.inverse() * current_pose;
+      last_keyframe_pose_.inverse() * current_pose;
   const double distance = delta_pose.translation().norm();  // meter
   const double angle =
       delta_pose.rotation().angle() * kRadianToDegree;  // degree
@@ -49,15 +49,13 @@ void LocalMapBuilder::AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
                                     transform::Rigid2d* pose_estimate,
                                     float* score, bool* is_keyframe) {
   if (estimated_poses_.empty()) {
-    last_keyfframe_pose_ = initial_pose;
+    last_keyframe_pose_ = initial_pose;
     // ndt_aligner_ = std::make_unique<NDTAligner>();
     // ndt_aligner_->AddPointCloud(point_cloud);
 
     icp_aligner_ = std::make_unique<ICPAligner>();
     icp_aligner_->AddPointCloud(point_cloud);
     estimated_poses_.emplace_back(initial_pose);
-    map_points_.insert(map_points_.begin(), point_cloud.begin(),
-                       point_cloud.end());
 
     *pose_estimate = initial_pose;
     *score = 1.0;
@@ -97,9 +95,7 @@ void LocalMapBuilder::AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
   icp_aligner_->AddPointCloud(transformed_points);
 
   // update last keyframe
-  last_keyfframe_pose_ = *pose_estimate;
-  map_points_.insert(map_points_.begin(), transformed_points.begin(),
-                     transformed_points.end());
+  last_keyframe_pose_ = *pose_estimate;
 }
 
 }  // namespace solex_robot::navigation::localization_2d

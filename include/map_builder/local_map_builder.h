@@ -46,18 +46,14 @@ class LocalMapBuilder {
                      transform::Rigid2d* final_pose, float* score,
                      bool* is_keyframe);
 
-  const std::vector<Eigen::Vector3d>& map_points() { return map_points_; }
-
  private:
   bool IsKeyframe(const transform::Rigid2d& current_pose);
 
  private:
-  transform::Rigid2d last_keyfframe_pose_;
+  transform::Rigid2d last_keyframe_pose_;
   std::unique_ptr<NDTAligner> ndt_aligner_;
   std::unique_ptr<ICPAligner> icp_aligner_;
   std::vector<transform::Rigid2d> estimated_poses_;
-  std::vector<Eigen::Vector3d> map_points_;
-  int count_ = 0;
 };
 
 }  // namespace solex_robot::navigation::localization_2d

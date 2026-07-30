@@ -38,7 +38,7 @@ namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr double kDegreeToRadian = M_PI / 180.0;
 
-constexpr int kOptimizeNodeInterval = 5;
+constexpr int kOptimizeNodeInterval = 1;
 constexpr int kMaxNodeBufferLength = 20;
 
 constexpr int kMaxIterationsNum = 50;
@@ -50,7 +50,7 @@ constexpr std::array<double, 6> kFixedPoseWeiht = {1.e3, 1.e3, 1.e3,
                                                    1.e2, 1.e2, 1.e2};
 
 constexpr int kFixedPoseHuberLoss = 20.0;
-constexpr int kMinGlobalLocalizationScore = 0.5;
+constexpr int kMinGlobalLocalizationScore = 0.3;
 
 Eigen::Matrix4d ToMatrix4d(const transform::Rigid2d& rigid_pose) {
   Eigen::Matrix4d eigen_pose = Eigen::Matrix4d::Identity();
@@ -93,6 +93,10 @@ void PoseGraph::ComputeLocalConstraint(
   // constraint_data->points, probability_grid_,
   //                            &ceres_pose_estimate, &ceres_match_score);
 
+  if (ceres_match_score < kMinGlobalLocalizationScore) {
+    return;
+  }
+
   constraint_data->global_pose = ceres_pose_estimate;
   constraint_data->global_pose_score = ceres_match_score;
 
@@ -105,9 +109,9 @@ void PoseGraph::ComputeLocalConstraint(
 
   const transform::Rigid2d delta_pose =
       initial_pose_estimate.inverse() * ceres_pose_estimate;
-  LOG(INFO) << "delta = " << delta_pose.translation().x() << ", "
-            << delta_pose.translation().x() << ", "
-            << delta_pose.rotation().angle() * 180 / M_PI;
+  // LOG(INFO) << "delta = " << delta_pose.translation().x() << ", "
+  //           << delta_pose.translation().x() << ", "
+  //           << delta_pose.rotation().angle() * 180 / M_PI;
 
   //   {
   //     const MapLimits& map_limits = probability_grid_->map_limits();
@@ -148,13 +152,10 @@ void PoseGraph::ComputeGlobalConstraint(
   fast_correlative_scan_matcher_->MatchFullSubmap(
       constraint_data->points, kMinGlobalLocalizationScore, &fast_match_score,
       &fast_pose_estimate);
-  if (fast_match_score < kMinGlobalLocalizationScore) {
-    return;
-  }
 
   LOG(INFO) << "fast_match_score = " << fast_match_score;
 
-  float ceres_match_score = ceres_match_score;
+  float ceres_match_score = fast_match_score;
   transform::Rigid2d ceres_pose_estimate = fast_pose_estimate;
   // float ceres_match_score = 0.0;
   // transform::Rigid2d ceres_pose_estimate;
@@ -162,6 +163,9 @@ void PoseGraph::ComputeGlobalConstraint(
   //                            probability_grid_, &ceres_pose_estimate,
   //                            &ceres_match_score);
   // LOG(INFO) << "ceres_match_score = " << ceres_match_score;
+  if (ceres_match_score < kMinGlobalLocalizationScore) {
+    return;
+  }
 
   constraint_data->global_pose = ceres_pose_estimate;
   constraint_data->global_pose_score = ceres_match_score;
@@ -266,6 +270,12 @@ void PoseGraph::GlobalOptimize() {
   {
     std::unique_lock<std::mutex> buffer_lock(optimized_node_mutex_);
     optimized_node_ = nodes.back();
+    const transform::Rigid2d delta_pose =
+        optimized_node_->optimized_pose.inverse() *
+        optimized_node_->constraint_data->global_pose;
+
+    // LOG(INFO) << "delta_pose = " << delta_pose.translation().norm()
+    //           << ", angle = " << delta_pose.rotation().angle();
   }
 
   const auto t1 = std::chrono::steady_clock::now();
@@ -313,6 +323,7 @@ void PoseGraph::Init() {
 void PoseGraph::Reset() {
   Finish();
 
+  node_interval_ = 0;
   pose_graph_running_ = true;
   optimization_thread_ = std::thread(&PoseGraph::OptimizationLoop, this);
   constraint_thread_ = std::thread(&PoseGraph::ConstraintLoop, this);
@@ -330,6 +341,10 @@ void PoseGraph::Finish() {
   if (constraint_thread_.joinable()) {
     constraint_thread_.join();
   }
+
+  constraint_data_buffer_.clear();
+  caidate_node_buffer_.clear();
+  node_buffer_.clear();
 }
 
 // 后台优化线程的主循环
