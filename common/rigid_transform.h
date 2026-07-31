@@ -216,8 +216,16 @@ T GetYaw(const Rigid3<T>& transform) {
 
 template <typename T>
 Rigid2<T> Project2D(const Rigid3<T>& transform) {
-  return Rigid2<T>(transform.translation().template head<2>(),
+  return Rigid2<T>(transform.translation().template head(2),
                    GetYaw(transform));
+}
+
+template <typename T>
+Rigid3<T> Embed3D(const Rigid2<T>& transform) {
+  return Rigid3<T>(
+      {transform.translation().x(), transform.translation().y(), T(0)},
+      Eigen::AngleAxis<T>(transform.rotation().angle(),
+                          Eigen::Matrix<T, 3, 1>::UnitZ()));
 }
 
 template <typename T>

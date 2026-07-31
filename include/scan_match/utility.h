@@ -46,7 +46,62 @@ constexpr int kUnknownProbabilityValue = 0;
 
 constexpr int kRepetitionCount = 2;
 constexpr double kSafetyMargin = 1. - 1e-3;
+// 小于kUpdateMarker的值：代表正常的Correspondence Cost。这个数值可以直接作为查找表（table）的下标去查询更新后的代价。
+// 大于等于kUpdateMarker的值：代表“本帧已被更新过”的标记
+constexpr uint16_t kUpdateMarker = 1u << 15;
 }  // namespace
+
+inline float SlowValueToBoundedFloat(const uint16_t value,
+                                     const uint16_t unknown_value,
+                                     const float unknown_result,
+                                     const float lower_bound,
+                                     const float upper_bound) {
+  CHECK_LT(value, kValueCount);
+  if (value == unknown_value) {
+    return unknown_result;
+  }
+
+  // 将有效的值范围[1, kValueCount - 1]线性映射到[lower_bound, upper_bound]
+  const float scale = (upper_bound - lower_bound) / (kValueCount - 2.f);
+
+  // (lower_bound - scale) 为偏移量, 保证了当value为1时，输出正好是lower_bound
+  return value * scale + (lower_bound - scale);
+}
+
+inline uint16_t BoundedFloatToValue(const float float_value,
+                                    const float lower_bound,
+                                    const float upper_bound) {
+  const int value =
+      std::lround(
+          (std::clamp(float_value, lower_bound, upper_bound) - lower_bound) *
+          (32766.f / (upper_bound - lower_bound))) +
+      1;
+  // DCHECK for performance.
+  DCHECK_GE(value, 1);
+  DCHECK_LE(value, 32767);
+  return value;
+}
+
+inline uint16_t CorrespondenceCostToValue(const float correspondence_cost) {
+  return BoundedFloatToValue(correspondence_cost, kMinCorrespondenceCost,
+                             kMaxCorrespondenceCost);
+}
+
+inline float ProbabilityToCorrespondenceCost(const float probability) {
+  return 1.f - probability;
+}
+
+inline float CorrespondenceCostToProbability(const float correspondence_cost) {
+  return 1.f - correspondence_cost;
+}
+
+inline float ProbabilityFromOdds(const float odds) {
+  return odds / (odds + 1.f);
+}
+
+inline float Odds(float probability) {
+  return probability / (1.f - probability);
+}
 
 typedef std::vector<Eigen::Array2i> DiscreteScan2D;
 
@@ -80,6 +135,7 @@ struct RealTimeCorrelativeScanMatcherOptions2D {
 };
 
 struct CellLimits {
+  CellLimits() = default;
   CellLimits(int init_num_x_cells, int init_num_y_cells)
       : num_x_cells(init_num_x_cells), num_y_cells(init_num_y_cells) {}
 
@@ -105,7 +161,7 @@ struct SearchParameters {
     // We set this value to something on the order of resolution to make sure
     // that the std::acos() below is defined. float max_scan_range = 3.f *
     // resolution; for (const Eigen::Vector3f& point : point_cloud) {
-    //   const float range = point.position.head<2>().norm();
+    //   const float range = point.position.head(2).norm();
     //   max_scan_range = std::max(range, max_scan_range);
     // }
 
@@ -194,6 +250,19 @@ struct Candidate2D {
   bool operator>(const Candidate2D& other) const { return score > other.score; }
 };
 
+class ValueConversionTables {
+ public:
+  const std::vector<float>* GetConversionTable(float unknown_result,
+                                               float lower_bound,
+                                               float upper_bound);
+
+ private:
+  std::map<const std::tuple<float /* unknown_result */, float /* lower_bound */,
+                            float /* upper_bound */>,
+           std::unique_ptr<const std::vector<float>>>
+      bounds_to_lookup_table_;
+};
+
 class MapLimits {
  public:
   MapLimits(const double resolution, const Eigen::Vector2d& origin,
@@ -245,6 +314,62 @@ class MapLimits {
   double resolution_;
   Eigen::Vector2d origin_;
   CellLimits cell_limits_;
+};
+
+class XYIndexRangeIterator
+    : public std::iterator<std::input_iterator_tag, Eigen::Array2i> {
+ public:
+  // Constructs a new iterator for the specified range.
+  XYIndexRangeIterator(const Eigen::Array2i& min_xy_index,
+                       const Eigen::Array2i& max_xy_index)
+      : min_xy_index_(min_xy_index),
+        max_xy_index_(max_xy_index),
+        xy_index_(min_xy_index) {}
+
+  // Constructs a new iterator for everything contained in 'cell_limits'.
+  explicit XYIndexRangeIterator(const CellLimits& cell_limits)
+      : XYIndexRangeIterator(Eigen::Array2i::Zero(),
+                             Eigen::Array2i(cell_limits.num_x_cells - 1,
+                                            cell_limits.num_y_cells - 1)) {}
+
+  XYIndexRangeIterator& operator++() {
+    // This is a necessary evil. Bounds checking is very expensive and needs to
+    // be avoided in production. We have unit tests that exercise this check
+    // in debug mode.
+    DCHECK(*this != end());
+    if (xy_index_.x() < max_xy_index_.x()) {
+      ++xy_index_.x();
+    } else {
+      xy_index_.x() = min_xy_index_.x();
+      ++xy_index_.y();
+    }
+    return *this;
+  }
+
+  Eigen::Array2i& operator*() { return xy_index_; }
+
+  bool operator==(const XYIndexRangeIterator& other) const {
+    return (xy_index_ == other.xy_index_).all();
+  }
+
+  bool operator!=(const XYIndexRangeIterator& other) const {
+    return !operator==(other);
+  }
+
+  XYIndexRangeIterator begin() {
+    return XYIndexRangeIterator(min_xy_index_, max_xy_index_);
+  }
+
+  XYIndexRangeIterator end() {
+    XYIndexRangeIterator it = begin();
+    it.xy_index_ = Eigen::Array2i(min_xy_index_.x(), max_xy_index_.y() + 1);
+    return it;
+  }
+
+ private:
+  Eigen::Array2i min_xy_index_;
+  Eigen::Array2i max_xy_index_;
+  Eigen::Array2i xy_index_;
 };
 
 }  // namespace solex_robot::navigation::localization_2d

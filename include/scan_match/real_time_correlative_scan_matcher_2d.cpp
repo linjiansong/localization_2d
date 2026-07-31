@@ -48,6 +48,7 @@ std::vector<Eigen::Vector3d> TransformPointCloud(
 }  // namespace
 
 float RealTimeCorrelativeScanMatcher2D::ComputeCandidateScore(
+    const ProbabilityGrid& probability_grid,
     const DiscreteScan2D& discrete_scan, int x_index_offset,
     int y_index_offset) const {
   float candidate_score = 0.f;
@@ -55,7 +56,7 @@ float RealTimeCorrelativeScanMatcher2D::ComputeCandidateScore(
     const Eigen::Array2i proposed_xy_index(xy_index.x() + x_index_offset,
                                            xy_index.y() + y_index_offset);
     const float probability =
-        probability_grid_->GetProbability(proposed_xy_index);
+        probability_grid.GetProbability(proposed_xy_index);
     candidate_score += probability;
   }
   candidate_score /= static_cast<float>(discrete_scan.size());
@@ -108,7 +109,7 @@ std::vector<DiscreteScan2D> RealTimeCorrelativeScanMatcher2D::DiscretizeScans(
     discrete_scans.back().reserve(scan.size());
     for (const Eigen::Vector3d& point : scan) {
       const Eigen::Vector2f translated_point =
-          Eigen::Affine2f(initial_translation) * point.cast<float>().head<2>();
+          (Eigen::Affine2f(initial_translation) * point.cast<float>()).head(2);
       discrete_scans.back().push_back(
           map_limits.GetCellIndex(translated_point));
     }
@@ -138,7 +139,8 @@ RealTimeCorrelativeScanMatcher2D::GenerateRotatedScans(
 void RealTimeCorrelativeScanMatcher2D::Match(
     const transform::Rigid2d& initial_pose_estimate,
     const std::vector<Eigen::Vector3d>& point_cloud,
-    transform::Rigid2d* pose_estimate, float* score) const {
+    const ProbabilityGrid& probability_grid, transform::Rigid2d* pose_estimate,
+    float* score) const {
   CHECK(pose_estimate != nullptr);
 
   const Eigen::Rotation2Dd initial_rotation = initial_pose_estimate.rotation();
@@ -148,16 +150,17 @@ void RealTimeCorrelativeScanMatcher2D::Match(
           initial_rotation.cast<float>().angle(), Eigen::Vector3f::UnitZ())));
   const SearchParameters search_parameters(
       options_.linear_search_window, options_.angular_search_window,
-      rotated_point_cloud, probability_grid_->map_limits().resolution());
+      rotated_point_cloud, probability_grid.map_limits().resolution());
   const std::vector<std::vector<Eigen::Vector3d>> rotated_scans =
       GenerateRotatedScans(rotated_point_cloud, search_parameters);
   const std::vector<DiscreteScan2D> discrete_scans = DiscretizeScans(
-      probability_grid_->map_limits(), rotated_scans,
+      probability_grid.map_limits(), rotated_scans,
       Eigen::Translation2f(initial_pose_estimate.translation().x(),
                            initial_pose_estimate.translation().y()));
   std::vector<Candidate2D> candidates =
       GenerateExhaustiveSearchCandidates(search_parameters);
-  ScoreCandidates(discrete_scans, search_parameters, &candidates);
+  ScoreCandidates(probability_grid, discrete_scans, search_parameters,
+                  &candidates);
 
   const Candidate2D& best_candidate =
       *std::max_element(candidates.begin(), candidates.end());
@@ -169,15 +172,16 @@ void RealTimeCorrelativeScanMatcher2D::Match(
 }
 
 void RealTimeCorrelativeScanMatcher2D::ScoreCandidates(
+    const ProbabilityGrid& probability_grid,
     const std::vector<DiscreteScan2D>& discrete_scans,
     const SearchParameters& search_parameters,
     std::vector<Candidate2D>* const candidates) const {
   for (Candidate2D& candidate : *candidates) {
-    switch (probability_grid_->GetGridType()) {
+    switch (probability_grid.GetGridType()) {
       case GridType::PROBABILITY_GRID:
         candidate.score = ComputeCandidateScore(
-            discrete_scans[candidate.scan_index], candidate.x_index_offset,
-            candidate.y_index_offset);
+            probability_grid, discrete_scans[candidate.scan_index],
+            candidate.x_index_offset, candidate.y_index_offset);
         break;
         //   case GridType::TSDF:
         //     candidate.score = ComputeCandidateScore(

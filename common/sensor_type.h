@@ -35,11 +35,11 @@ namespace sensor {
 
 enum class DataType { kLaserData = 0, kImuData = 1, kOdometryData = 2 };
 
-struct TimedPointCloud {
+struct TimedPoint {
   Eigen::Vector3d position;
   double timestamp = 0.0;
 };
-using TimedPointCloudPtr = std::shared_ptr<TimedPointCloud>;
+using TimedPointPtr = std::shared_ptr<TimedPoint>;
 
 class SensorData {
  public:
@@ -49,29 +49,44 @@ class SensorData {
   double timestamp() const { return timestamp_; }
   DataType data_type() const { return data_type_; }
 
+  const transform::Rigid3d& pose() const { return pose_; }
+  void set_pose(const transform::Rigid3d& pose) { pose_ = pose; }
+
  private:
   const double timestamp_;
   const DataType data_type_;
+  transform::Rigid3d pose_ = transform::Rigid3d::Identity();
 };
 
 class LaserData final : public SensorData {
  public:
-  LaserData(const double timestamp) : SensorData(timestamp, DataType::kLaserData) {}
+  LaserData(const double timestamp)
+      : SensorData(timestamp, DataType::kLaserData) {}
 
-  const std::vector<TimedPointCloudPtr>& points() const { return points_; }
-  std::vector<TimedPointCloudPtr>* mutable_points() { return &points_; }
+  const std::vector<TimedPointPtr>& missing_points() const {
+    return missing_points_;
+  }
+  std::vector<TimedPointPtr>* mutable_missing_points() {
+    return &missing_points_;
+  }
+
+  const std::vector<TimedPointPtr>& hitting_points() const {
+    return hitting_points_;
+  }
+  std::vector<TimedPointPtr>* mutable_hitting_points() {
+    return &hitting_points_;
+  }
 
  private:
-  std::vector<TimedPointCloudPtr> points_;
+  std::vector<TimedPointPtr> missing_points_;
+  std::vector<TimedPointPtr> hitting_points_;
 };
+using LaserDataPtr = std::shared_ptr<LaserData>;
 
 // Imu data
 class ImuData final : public SensorData {
  public:
   ImuData(const double timestamp) : SensorData(timestamp, DataType::kImuData) {}
-
-  const transform::Rigid3d& pose() const { return pose_; }
-  void set_pose(const transform::Rigid3d& pose) { pose_ = pose; }
 
   const Eigen::Vector3d& angular_velocity() const { return angular_velocity_; }
   void set_angular_velocity(const Eigen::Vector3d& angular_velocity) {
@@ -86,23 +101,17 @@ class ImuData final : public SensorData {
   }
 
  private:
-  transform::Rigid3d pose_;
   Eigen::Vector3d angular_velocity_;
   Eigen::Vector3d linear_acceleration_;
 };
+using ImuDataPtr = std::shared_ptr<ImuData>;
 
 // Odometry SensorData
 class OdometryData final : public SensorData {
  public:
   OdometryData(const double timestamp)
       : SensorData(timestamp, DataType::kOdometryData) {}
-
-  const transform::Rigid3d& pose() const { return pose_; }
-  void set_pose(const transform::Rigid3d& pose) { pose_ = pose; }
-
- private:
-  transform::Rigid3d pose_;
 };
-
+using OdometryDataPtr = std::shared_ptr<OdometryData>;
 }  // namespace sensor
 }  // namespace solex_robot::navigation::localization_2d

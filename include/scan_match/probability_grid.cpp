@@ -35,7 +35,9 @@ ProbabilityGrid::ProbabilityGrid(const MapLimits& map_limits,
       correspondence_cost_cells_(map_limits_.cell_limits().num_x_cells *
                                      map_limits_.cell_limits().num_y_cells,
                                  kUnknownCorrespondenceValue),
-      conversion_tables_(conversion_tables) {}
+      conversion_tables_(conversion_tables) {
+  PrecomputeValueToBoundedFloat();
+}
 
 ProbabilityGrid::ProbabilityGrid(
     const MapLimits& map_limits,
@@ -45,6 +47,120 @@ ProbabilityGrid::ProbabilityGrid(
       correspondence_cost_cells_(correspondence_cost_cells),
       conversion_tables_(conversion_tables) {
   PrecomputeValueToBoundedFloat();
+}
+
+void ProbabilityGrid::SetProbability(const Eigen::Array2i& cell_index,
+                                     const float probability) {
+  uint16_t& cell = correspondence_cost_cells_[ToFlatIndex(cell_index)];
+  CHECK_EQ(cell, kUnknownProbabilityValue);
+  cell =
+      CorrespondenceCostToValue(ProbabilityToCorrespondenceCost(probability));
+  known_cells_box_.extend(cell_index.matrix());
+}
+
+void ProbabilityGrid::ComputeCroppedLimits(Eigen::Array2i* const offset,
+                                           CellLimits* const limits) const {
+  if (known_cells_box_.isEmpty()) {
+    *offset = Eigen::Array2i::Zero();
+    *limits = CellLimits(1, 1);
+    return;
+  }
+
+  *offset = known_cells_box_.min().array();
+  *limits = CellLimits(known_cells_box_.sizes().x() + 1,
+                       known_cells_box_.sizes().y() + 1);
+}
+
+std::unique_ptr<ProbabilityGrid> ProbabilityGrid::ComputeCroppedGrid() const {
+  Eigen::Array2i offset;
+  CellLimits cell_limits;
+  ComputeCroppedLimits(&offset, &cell_limits);
+  const double resolution = map_limits_.resolution();
+  const Eigen::Vector2d origin =
+      map_limits_.origin() +
+      resolution * Eigen::Vector2d(offset.x(), offset.y());  // Todo
+  std::unique_ptr<ProbabilityGrid> cropped_grid =
+      std::make_unique<ProbabilityGrid>(
+          MapLimits(resolution, origin, cell_limits), conversion_tables_);
+  for (const Eigen::Array2i& xy_index : XYIndexRangeIterator(cell_limits)) {
+    if (IsKnown(xy_index + offset)) {
+      cropped_grid->SetProbability(xy_index, GetProbability(xy_index + offset));
+    }
+  }
+
+  return cropped_grid;
+}
+
+void ProbabilityGrid::FinishUpdate() {
+  while (!update_indices_.empty()) {
+    DCHECK_GE(correspondence_cost_cells_[update_indices_.back()],
+              kUpdateMarker);
+    correspondence_cost_cells_[update_indices_.back()] -= kUpdateMarker;
+    update_indices_.pop_back();
+  }
+}
+
+void ProbabilityGrid::GrowLimits(const Eigen::Vector2f& point) {
+  CHECK(update_indices_.empty());
+  while (!map_limits_.Contains(map_limits_.GetCellIndex(point))) {
+    const CellLimits& cell_limits = map_limits_.cell_limits();
+    const int x_offset = cell_limits.num_x_cells / 2;
+    const int y_offset = cell_limits.num_y_cells / 2;
+    const Eigen::Vector2d new_origin = Eigen::Vector2d(
+        map_limits_.origin().x() - map_limits_.resolution() * x_offset,
+        map_limits_.origin().y() + map_limits_.resolution() * y_offset);
+    const MapLimits new_limits(
+        map_limits_.resolution(), new_origin,
+        CellLimits(2 * cell_limits.num_x_cells, 2 * cell_limits.num_y_cells));
+    const int stride = new_limits.cell_limits().num_x_cells;
+    const int offset = x_offset + stride * y_offset;
+    const int new_size = new_limits.cell_limits().num_x_cells *
+                         new_limits.cell_limits().num_y_cells;
+    std::vector<uint16_t> new_cells(new_size, kUnknownCorrespondenceValue);
+    for (int y_index = 0; y_index < cell_limits.num_y_cells; ++y_index) {
+      for (int x_index = 0; x_index < cell_limits.num_x_cells; ++x_index) {
+        new_cells[offset + x_index + y_index * stride] =
+            correspondence_cost_cells_[x_index +
+                                       y_index * cell_limits.num_x_cells];
+      }
+    }
+
+    correspondence_cost_cells_ = std::move(new_cells);
+    map_limits_ = new_limits;
+    if (!known_cells_box_.isEmpty()) {
+      known_cells_box_.translate(Eigen::Vector2i(x_offset, y_offset));
+    }
+  }
+}
+
+bool ProbabilityGrid::ApplyLookupTable(const Eigen::Array2i& cell_index,
+                                       const std::vector<uint16_t>& table) {
+  DCHECK_EQ(table.size(), kUpdateMarker);
+  const int flat_index = ToFlatIndex(cell_index);
+
+  uint16_t* cell = &(correspondence_cost_cells_[flat_index]);
+  CHECK_NOTNULL(cell);
+  if (*cell >= kUpdateMarker) {
+    return false;
+  }
+
+  update_indices_.push_back(flat_index);
+
+  /* 对数几率累加公式：l_t = l_t-1 + nverse_sensor_model(z_t),
+   * inverse_sensor_model(z_t)是固定值. 在高频雷达、大地图的情况下,
+   * 计算量会非常巨大.
+   * 由于概率更新的步长和范围是有限的，Cartographer在程序初始化时，把所有可能的“旧概率值”和“雷达观测结果”组合对应的“新概率值”，提前算好并存放在一个大数组table里.
+   * 把当前栅格的值*cell直接当作索引，去table这个数组里查找对应的新值。
+   * 然后利用查找表(Lookup
+   * Table)的思想，将复杂的浮点数概率计算转化为了极高效的数组查表操作.
+   * 将查出来的新值覆盖写回到原栅格中，完成地图概率的更新。
+   */
+  *cell = table[*cell];
+  // LOG(INFO) << "*cell = " << *cell;
+
+  DCHECK_GE(*cell, kUpdateMarker);
+  known_cells_box_.extend(cell_index.matrix());
+  return true;
 }
 
 int ProbabilityGrid::ToFlatIndex(const Eigen::Array2i& cell_index) const {
@@ -59,25 +175,7 @@ bool ProbabilityGrid::IsKnown(const Eigen::Array2i& cell_index) const {
              kUnknownCorrespondenceValue;
 }
 
-float ProbabilityGrid::SlowValueToBoundedFloat(const uint16_t value,
-                                               const uint16_t unknown_value,
-                                               const float unknown_result,
-                                               const float lower_bound,
-                                               const float upper_bound) {
-  CHECK_LT(value, kValueCount);
-  if (value == unknown_value) {
-    return unknown_result;
-  }
-
-  // 将有效的值范围[1, kValueCount - 1]线性映射到[lower_bound, upper_bound]
-  const float scale = (upper_bound - lower_bound) / (kValueCount - 2.f);
-
-  // (lower_bound - scale) 为偏移量, 保证了当value为1时，输出正好是lower_bound
-  return value * scale + (lower_bound - scale);
-}
-
 void ProbabilityGrid::PrecomputeValueToBoundedFloat() {
-  auto result = std::make_unique<std::vector<float>>();
   value_to_correspondence_cost_.clear();
   // Repeat two times, so that both values with and without the update marker
   // can be converted to a probability.
@@ -87,7 +185,6 @@ void ProbabilityGrid::PrecomputeValueToBoundedFloat() {
    * 32768）来标记“该像素在本次扫描中已被更新”。
    * 通过预计算两倍的表长，代码可以在查找阶段通过简单的偏移寻址直接拿到结果，而不需要判断当前值是否带有更新标记。
    **/
-
   value_to_correspondence_cost_.reserve(kRepetitionCount * kValueCount);
   for (int repeat = 0; repeat != kRepetitionCount; ++repeat) {
     for (int value = 0; value != kValueCount; ++value) {
@@ -104,11 +201,6 @@ float ProbabilityGrid::GetCorrespondenceCost(
   if (!map_limits_.Contains(cell_index)) {
     return kMaxCorrespondenceCost;
   }
-
-  // LOG(INFO) << "cost = "
-  //           << ValueToCorrespondenceCost(
-  //                  correspondence_cost_cells_[ToFlatIndex(cell_index)])
-  //           << ", (" << cell_index.x() << ", " << cell_index.y() << ")";
 
   return ValueToCorrespondenceCost(
       correspondence_cost_cells_[ToFlatIndex(cell_index)]);
@@ -140,7 +232,8 @@ void ProbabilityGrid::VisualizeGrid() {
       // 注意：你需要确保可以通过接口获取该值，或者直接访问私有成员
       // 这里假设你添加了一个公开接口或者在类内调用
       const float probability = GetProbability(index);
-      // LOG(INFO) << "index = (" << x << ", " << y << "), probability = " << probability;
+      // LOG(INFO) << "index = (" << x << ", " << y << "), probability = " <<
+      // probability;
 
       // 将 0.0-1.0 的 Cost 映射到 0-255 的灰度值
       // 通常：0.0 (空闲) -> 255 (白色), 1.0 (障碍物) -> 0 (黑色)

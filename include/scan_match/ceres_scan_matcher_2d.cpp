@@ -40,11 +40,11 @@ constexpr double kTranslationWeight = 10.0;
 constexpr double kRotationWeight = 40.0;
 }  // namespace
 
-void CeresScanMatcher2D::Match(
-    const transform::Rigid2d& initial_pose_estimate,
-    const std::vector<Eigen::Vector3d>& point_cloud,
-    const std::shared_ptr<ProbabilityGrid> probability_grid,
-    transform::Rigid2d* const pose_estimate, float* const score) {
+void CeresScanMatcher2D::Match(const transform::Rigid2d& initial_pose_estimate,
+                               const std::vector<Eigen::Vector3d>& point_cloud,
+                               const ProbabilityGrid& probability_grid,
+                               transform::Rigid2d* const pose_estimate,
+                               float* const score) {
   double ceres_pose_estimate[3] = {initial_pose_estimate.translation().x(),
                                    initial_pose_estimate.translation().y(),
                                    initial_pose_estimate.rotation().angle()};
@@ -54,13 +54,13 @@ void CeresScanMatcher2D::Match(
   CHECK_GT(kTranslationWeight, 0.);
   CHECK_GT(kRotationWeight, 0.);
 
-  switch (probability_grid->GetGridType()) {
+  switch (probability_grid.GetGridType()) {
     case GridType::PROBABILITY_GRID:
       problem.AddResidualBlock(
           OccupiedSpaceCostFunction2D::Create(
               kOccupiedSpaceWeight /
                   std::sqrt(static_cast<double>(point_cloud.size())),
-              point_cloud, *probability_grid),
+              point_cloud, probability_grid),
           nullptr /* loss function */, ceres_pose_estimate);
       break;
       // case GridType::TSDF:
@@ -102,7 +102,7 @@ void CeresScanMatcher2D::Match(
 
   // 计算最终的匹配得分
   {
-    const MapLimits& map_limits = probability_grid->map_limits();
+    const MapLimits& map_limits = probability_grid.map_limits();
 
     *score = 0.0;
     for (const Eigen::Vector3d& point : point_cloud) {
@@ -111,7 +111,7 @@ void CeresScanMatcher2D::Match(
       const Eigen::Array2i proposed_xy_index =
           map_limits.GetCellIndex(world_point.cast<float>());
       const float probability =
-          probability_grid->GetProbability(proposed_xy_index);
+          probability_grid.GetProbability(proposed_xy_index);
       *score += probability;
     }
 

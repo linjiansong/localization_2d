@@ -46,29 +46,30 @@ class Localization {
   Localization() = default;
   ~Localization();
 
-  void AddImuData(const sensor::ImuData& imu_data);
-  void AddOdometryData(const sensor::OdometryData& odometry_data);
-  void AddLaserData(const sensor::LaserData& laser_data);
+  void AddImuData(const sensor::ImuDataPtr& imu_data);
+  void AddOdometryData(const sensor::OdometryDataPtr& odometry_data);
+  void AddLaserData(const sensor::LaserDataPtr& laser_data);
   void AddGridMap(std::shared_ptr<ProbabilityGrid> probability_grid);
   void AddInitialPose(const Eigen::Matrix4d& initial_pose);
   void Init();
 
   const Eigen::Matrix4d GetLatestPose(const double timestamp);
+  const ProbabilityGrid* GetLocalMap();
 
  private:
-  void DistordPointCloud(const sensor::LaserData& laser_data);
+  void DistordPointCloud(const sensor::LaserDataPtr& laser_data);
 
   std::pair<Eigen::Matrix4d, float> MatchGlobalMap(
       const std::vector<Eigen::Vector3d>& points,
       const Eigen::Matrix4d& initial_pose);
 
-  void GlobalLocalization(const sensor::LaserData& laser_data);
+  void GlobalLocalization(const sensor::LaserDataPtr& laser_data);
 
-  void Relocalization(const sensor::LaserData& laser_data);
+  void Relocalization(const sensor::LaserDataPtr& laser_data);
 
-  void Track(const sensor::LaserData& laser_data);
+  void Track(const sensor::LaserDataPtr& laser_data);
 
-  float CalculateMatchScore(const sensor::LaserData& laser_data);
+  float CalculateMatchScore(const sensor::LaserDataPtr& laser_data);
 
  private:
   std::shared_ptr<ProbabilityGrid> probability_grid_;

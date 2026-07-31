@@ -56,22 +56,6 @@ FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
       limits_(probability_grid.map_limits()),
       precomputation_grid_stack_(std::make_unique<PrecomputationGridStack2D>(
           probability_grid, options)) {
-  LOG(INFO) << "FastCorrelativeScanMatcher2D Constrction";
-
-  // LOG(INFO) << "index = (338, 426) = " <<
-  // probability_grid.GetCorrespondenceCost(Eigen::Array2i(338, 426)); LOG(INFO)
-  // << "index = (339, 426) = " <<
-  // probability_grid.GetCorrespondenceCost(Eigen::Array2i(339, 426)); LOG(INFO)
-  // << "index = (340, 426) = " <<
-  // probability_grid.GetCorrespondenceCost(Eigen::Array2i(340, 426));
-
-  // LOG(INFO) << "index = (338, 426) = " <<
-  // probability_grid.GetProbability(Eigen::Array2i(338, 426)); LOG(INFO) <<
-  // "index = (339, 426) = " <<
-  // probability_grid.GetProbability(Eigen::Array2i(339, 426)); LOG(INFO) <<
-  // "index = (340, 426) = " <<
-  // probability_grid.GetProbability(Eigen::Array2i(340, 426));
-
   for (int depth = 0; depth < options.branch_and_bound_depth; ++depth) {
     const PrecomputationGrid2D& precomputation_grid =
         precomputation_grid_stack_->Get(depth);
@@ -79,8 +63,6 @@ FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
     const std::vector<uint8_t>& cells = precomputation_grid.cells();
 
     cv::Mat image(wide_limits.num_y_cells, wide_limits.num_x_cells, CV_8UC1);
-    LOG(INFO) << "num_y_cells = " << wide_limits.num_y_cells
-              << ", num_x_cells = " << wide_limits.num_x_cells;
     for (int y = 0; y < wide_limits.num_y_cells; ++y) {
       for (int x = 0; x < wide_limits.num_x_cells; ++x) {
         const int flat_index = y * wide_limits.num_x_cells + x;
@@ -89,10 +71,10 @@ FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
       }
     }
 
-    const std::string image_path =
-        "/home/linjs/图片/multimap_" + std::to_string(depth) + ".png";
-    LOG(INFO) << "image_path = " << image_path;
-    cv::imwrite(image_path, image);
+    // const std::string image_path =
+    //     "/home/linjs/图片/multimap_" + std::to_string(depth) + ".png";
+    // LOG(INFO) << "image_path = " << image_path;
+    // cv::imwrite(image_path, image);
   }
 }
 
@@ -107,7 +89,7 @@ std::vector<DiscreteScan2D> FastCorrelativeScanMatcher2D::DiscretizeScans(
     discrete_scans.back().reserve(scan.size());
     for (const Eigen::Vector3d& point : scan) {
       const Eigen::Vector2f translated_point =
-          Eigen::Affine2f(initial_translation) * point.cast<float>().head<2>();
+          (Eigen::Affine2f(initial_translation) * point.cast<float>()).head(2);
       discrete_scans.back().push_back(
           map_limits.GetCellIndex(translated_point));
     }
@@ -225,7 +207,8 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
 
       float score = 0.0;
       for (const Eigen::Vector3d point : rotated_point_cloud) {
-        const Eigen::Array2i index = limits_.GetCellIndex(point.cast<float>().head(2));
+        const Eigen::Array2i index =
+            limits_.GetCellIndex(point.cast<float>().head(2));
         score += precomputation_grid.GetValue(index);
       }
 

@@ -38,19 +38,6 @@ namespace solex_robot::navigation::localization_2d {
 
 enum class GridType { PROBABILITY_GRID = 0, TSDF = 1 };
 
-class ValueConversionTables {
- public:
-  const std::vector<float>* GetConversionTable(float unknown_result,
-                                               float lower_bound,
-                                               float upper_bound);
-
- private:
-  std::map<const std::tuple<float /* unknown_result */, float /* lower_bound */,
-                            float /* upper_bound */>,
-           std::unique_ptr<const std::vector<float>>>
-      bounds_to_lookup_table_;
-};
-
 // Represents a 2D grid of probabilities.
 class ProbabilityGrid {
  public:
@@ -59,6 +46,18 @@ class ProbabilityGrid {
   ProbabilityGrid(const MapLimits& limits,
                   const std::vector<uint16_t>& correspondence_cost_cells,
                   ValueConversionTables* conversion_tables);
+
+  void FinishUpdate();
+  
+  void GrowLimits(const Eigen::Vector2f& point);
+
+  void SetProbability(const Eigen::Array2i& cell_index,
+                      const float probability);
+
+  void ComputeCroppedLimits(Eigen::Array2i* const offset,
+                            CellLimits* const limits) const;
+
+  std::unique_ptr<ProbabilityGrid> ComputeCroppedGrid() const;
 
   bool ApplyLookupTable(const Eigen::Array2i& cell_index,
                         const std::vector<uint16_t>& table);
@@ -76,22 +75,12 @@ class ProbabilityGrid {
   const MapLimits& map_limits() const { return map_limits_; }
 
  private:
+
   int ToFlatIndex(const Eigen::Array2i& cell_index) const;
 
   bool IsKnown(const Eigen::Array2i& cell_index) const;
 
-  float SlowValueToBoundedFloat(const uint16_t value,
-                                const uint16_t unknown_value,
-                                const float unknown_result,
-                                const float lower_bound,
-                                const float upper_bound);
-
   void PrecomputeValueToBoundedFloat();
-
-  inline float CorrespondenceCostToProbability(
-      const float correspondence_cost) const {
-    return 1.f - correspondence_cost;
-  }
 
   inline float ValueToCorrespondenceCost(const uint16_t value) const {
     return value_to_correspondence_cost_[value];

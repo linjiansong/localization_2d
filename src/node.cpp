@@ -46,7 +46,9 @@ namespace {
 constexpr double kSecondToNanoSecond = 1.e9;
 }  // namespace
 
-LocalizationNode::LocalizationNode() : rclcpp::Node("sensor_subscriber_node") {
+LocalizationNode::LocalizationNode()
+    : rclcpp::Node("sensor_subscriber_node"),
+      locator_(std::make_unique<Localization>()) {
   // 使用 SensorDataQoS，这对于传感器高频数据至关重要
   auto qos = rclcpp::SensorDataQoS();
 
@@ -95,15 +97,20 @@ LocalizationNode::LocalizationNode() : rclcpp::Node("sensor_subscriber_node") {
   pose_publisher_ =
       this->create_publisher<geometry_msgs::msg::PoseStamped>("robot_pose", 50);
 
-  tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+  local_map_publisher_ =
+      this->create_publisher<nav_msgs::msg::OccupancyGrid>("local_map", 1);
 
-  locator_ = std::make_unique<Localization>();
+  tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
   // 创建定时器，50Hz 发布
   timer_ = this->create_wall_timer(std::chrono::milliseconds(20), [this]() {
     this->PublishTransform();
     this->PublishRobotPose();
   });
+
+  local_map_timer_ = this->create_wall_timer(
+      std::chrono::milliseconds(1000),
+      std::bind(&LocalizationNode::PublishLocalMap, this));
 
   LOG(INFO) << "Sensor Subscriber Node has been started.";
 }
@@ -138,39 +145,36 @@ void LocalizationNode::HandleScanMessage(
   }
 
   const double start_time = rclcpp::Time(msg->header.stamp).seconds();
-
-  std::vector<sensor::TimedPointCloudPtr> timed_points;
-  timed_points.reserve(msg->ranges.size());
-  for (size_t i = 0; i < msg->ranges.size(); ++i) {
-    const float range = msg->ranges[i];
-    const double time_offset = msg->time_increment * i;  // second
-
-    // 过滤超出物理量程的点
-    if (range < msg->range_min || range > msg->range_max) {
+  sensor::LaserDataPtr laser_data =
+      std::make_shared<sensor::LaserData>(start_time);
+  for (size_t index = 0; index < msg->ranges.size(); ++index) {
+    const float range = msg->ranges[index];
+    if (range < msg->range_min) {
       continue;
     }
 
     // 计算角度
-    const double angle = msg->angle_min + i * msg->angle_increment;
+    const double time_offset = msg->time_increment * index;  // second
+    const double angle = msg->angle_min + index * msg->angle_increment;
 
     // 转换为极坐标
     const Eigen::AngleAxisd rotation(angle, Eigen::Vector3d::UnitZ());
     const Eigen::Vector3d position =
         laser_to_base_transform * rotation * (Eigen::Vector3d(range, 0.0, 0.0));
 
-    sensor::TimedPointCloudPtr timed_point =
-        std::make_shared<sensor::TimedPointCloud>();
+    sensor::TimedPointPtr timed_point = std::make_shared<sensor::TimedPoint>();
     timed_point->position = position;
     timed_point->timestamp = start_time + time_offset;
-    timed_points.emplace_back(timed_point);
+
+    // 过滤超出物理量程的点
+    if (range > msg->range_max) {
+      laser_data->mutable_missing_points()->emplace_back(timed_point);
+    } else {
+      laser_data->mutable_hitting_points()->emplace_back(timed_point);
+    }
   }
 
-  CHECK_NOTNULL(locator_);
-  if (!timed_points.empty()) {
-    sensor::LaserData laser_data = sensor::LaserData(start_time);
-    *(laser_data.mutable_points()) = timed_points;
-    locator_->AddLaserData(laser_data);
-  }
+  locator_->AddLaserData(laser_data);
 }
 
 void LocalizationNode::HandleOdometryMessage(
@@ -185,8 +189,10 @@ void LocalizationNode::HandleOdometryMessage(
           msg->pose.pose.orientation.w, msg->pose.pose.orientation.x,
           msg->pose.pose.orientation.y, msg->pose.pose.orientation.z));
 
-  sensor::OdometryData odometry_data(rclcpp::Time(msg->header.stamp).seconds());
-  odometry_data.set_pose(eigen_pose);
+  sensor::OdometryDataPtr odometry_data =
+      std::make_shared<sensor::OdometryData>(
+          rclcpp::Time(msg->header.stamp).seconds());
+  odometry_data->set_pose(eigen_pose);
 
   locator_->AddOdometryData(odometry_data);
 }
@@ -231,11 +237,12 @@ void LocalizationNode::HandleImuMessage(
                                             msg->linear_acceleration.y,
                                             msg->linear_acceleration.z);
 
-  sensor::ImuData imu_data(rclcpp::Time(msg->header.stamp).seconds());
-  imu_data.set_angular_velocity(imu_to_base_transform.rotation() *
-                                angular_velocity);
-  imu_data.set_linear_acceleration(imu_to_base_transform.rotation() *
-                                   linear_acceleration);
+  sensor::ImuDataPtr imu_data = std::make_shared<sensor::ImuData>(
+      rclcpp::Time(msg->header.stamp).seconds());
+  imu_data->set_angular_velocity(imu_to_base_transform.rotation() *
+                                 angular_velocity);
+  imu_data->set_linear_acceleration(imu_to_base_transform.rotation() *
+                                    linear_acceleration);
   locator_->AddImuData(imu_data);
 }
 
@@ -377,6 +384,58 @@ void LocalizationNode::PublishTransform() {
   odom_to_base.transform =
       tf2::eigenToTransform(Eigen::Affine3d::Identity()).transform;
   tf_broadcaster_->sendTransform(odom_to_base);
+}
+
+void LocalizationNode::PublishLocalMap() {
+  const ProbabilityGrid* probability_grid = locator_->GetLocalMap();
+  if (probability_grid == nullptr) {
+    return;
+  }
+
+  const MapLimits& map_limits = probability_grid->map_limits();
+  const int width = map_limits.cell_limits().num_x_cells;
+  const int height = map_limits.cell_limits().num_y_cells;
+  auto map_msg = std::make_shared<nav_msgs::msg::OccupancyGrid>();
+
+  map_msg->header.stamp = this->now();
+  map_msg->header.frame_id = "map";
+  map_msg->info.resolution = map_limits.resolution();
+  map_msg->info.width = width;
+  map_msg->info.height = height;
+
+  map_msg->info.origin.position.x = map_limits.origin().x();
+  map_msg->info.origin.position.y =
+      map_limits.origin().y() - map_limits.resolution() * height;
+  map_msg->info.origin.position.z = 0.0;
+  map_msg->info.origin.orientation.w = 1.0;
+
+  map_msg->data.resize(width * height);
+  for (int y_index = 0; y_index < height; ++y_index) {
+    for (int x_index = 0; x_index < width; ++x_index) {
+      const float probability =
+          probability_grid->GetProbability(Eigen::Array2i(x_index, y_index));
+      const int flat_index = (height - y_index - 1) * width + x_index;
+      const int value = probability > 0.5 ? 100 : 0;
+      map_msg->data[flat_index] = value;
+    }
+  }
+
+  {
+    cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        const Eigen::Array2i index(x, y);
+        const double probability = probability_grid->GetProbability(index);
+        // const uint8_t value = 255 * (1.0 - probability);
+        const uint8_t value = 255 * probability;
+        image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
+      }
+    }
+
+    cv::imwrite("/home/linjs/图片/local_map.png", image);
+  }
+
+  local_map_publisher_->publish(*map_msg);
 }
 
 }  // namespace solex_robot::navigation::localization_2d

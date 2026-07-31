@@ -24,54 +24,43 @@
 
 #pragma once
 
-#include <common/base_type.h>
-#include <common/rigid_transform.h>
-
-#include <Eigen/Core>
-#include <Eigen/Geometry>
-#include <memory>
 #include <vector>
 
-#include "common/rigid_transform.h"
-#include "include/map_builder/active_map.h"
-#include "include/map_builder/icp_aligner.h"
-#include "include/map_builder/ndt_aligner.h"
-#include "include/scan_match/ceres_scan_matcher_2d.h"
-#include "include/scan_match/real_time_correlative_scan_matcher_2d.h"
+#include "Eigen/Core"
+#include "common/sensor_type.h"
+#include "include/scan_match/probability_grid.h"
 
 namespace solex_robot::navigation::localization_2d {
-class LocalMapBuilder {
+class LaserDataInserter {
  public:
-  LocalMapBuilder();
+  explicit LaserDataInserter();
 
-  void AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
-                     const transform::Rigid2d& initial_pose,
-                     transform::Rigid2d* final_pose, float* score,
-                     bool* is_keyframe);
-
-  void AddLaserData(const sensor::LaserDataPtr& laser_data,
-                    const transform::Rigid2d& initial_pose,
-                    transform::Rigid2d* pose_estimate, float* score,
-                    bool* is_keyframe);
-
-  const std::vector<std::shared_ptr<Submap>> GetLocalMap() const;
+  LaserDataInserter(const LaserDataInserter&) = delete;
+  LaserDataInserter& operator=(const LaserDataInserter&) = delete;
+  void Insert(const sensor::LaserDataPtr& laser_data,
+              ProbabilityGrid* probability_grid) const;
 
  private:
-  bool IsKeyframe(const transform::Rigid2d& current_pose);
-  void MatchLocalMap(const transform::Rigid2d& pose_prediction,
-                     const std::vector<Eigen::Vector3d>& point_cloud,
-                     transform::Rigid2d* pose_estimate, float* score);
+  std::vector<float> PrecomputeValueToBoundedFloat() const;
+
+  std::vector<uint16_t> ComputeLookupTableToApplyCorrespondenceCostOdds(
+      float odds) const;
+
+  void GrowAsNeeded(const sensor::LaserDataPtr& laser_data,
+                    ProbabilityGrid* const probability_grid) const;
+
+  std::vector<Eigen::Array2i> RayToPixelMask(const Eigen::Array2i& scaled_begin,
+                                             const Eigen::Array2i& scaled_end,
+                                             int subpixel_scale) const;
+  void CastRays(const sensor::LaserDataPtr& laser_data,
+                const std::vector<uint16_t>& hit_table,
+                const std::vector<uint16_t>& miss_table,
+                ProbabilityGrid* probability_grid) const;
 
  private:
-  std::unique_ptr<NDTAligner> ndt_aligner_;
-  std::unique_ptr<ICPAligner> icp_aligner_;
-  std::unique_ptr<ActiveSubmap> active_submaps_;
-  std::unique_ptr<CeresScanMatcher2D> ceres_scan_matcher_;
-  std::unique_ptr<RealTimeCorrelativeScanMatcher2D>
-      real_time_correlative_scan_matcher_;
-  transform::Rigid2d last_keyframe_pose_;
-
-  std::vector<transform::Rigid2d> estimated_poses_;
+  const std::vector<float> value_to_correspondence_cost_;
+  const std::vector<uint16_t> hitting_table_;
+  const std::vector<uint16_t> missing_table_;
 };
 
 }  // namespace solex_robot::navigation::localization_2d

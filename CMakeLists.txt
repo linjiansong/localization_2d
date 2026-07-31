@@ -39,11 +39,14 @@ add_executable(localization_2d_node
   src/localization.cpp
   include/pose_estimator/imu_tracker.cpp
   include/pose_estimator/pose_extrapolator.cpp
+  include/map_builder/active_map.cpp
   include/map_builder/icp_aligner.cpp
   include/map_builder/local_map_builder.cpp
   include/map_builder/ndt_aligner.cpp
+  include/map_builder/submap.cpp
   include/scan_match/ceres_scan_matcher_2d.cpp
   include/scan_match/fast_correlative_scan_matcher_2d.cpp
+  include/scan_match/laser_data_inserter.cpp
   include/scan_match/precomputation_grid_2d.cpp
   include/scan_match/probability_grid.cpp
   include/scan_match/real_time_correlative_scan_matcher_2d.cpp

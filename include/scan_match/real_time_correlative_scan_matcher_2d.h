@@ -38,32 +38,32 @@ namespace solex_robot::navigation::localization_2d {
 class RealTimeCorrelativeScanMatcher2D {
  public:
   explicit RealTimeCorrelativeScanMatcher2D(
-      const std::shared_ptr<ProbabilityGrid> probability_grid,
       const RealTimeCorrelativeScanMatcherOptions2D& options)
-      : probability_grid_(probability_grid), options_(options) {}
+      : options_(options) {}
 
   RealTimeCorrelativeScanMatcher2D(const RealTimeCorrelativeScanMatcher2D&) =
       delete;
-  RealTimeCorrelativeScanMatcher2D& operator=(
-      const RealTimeCorrelativeScanMatcher2D&) = delete;
 
   // Aligns 'point_cloud' within the 'probability_grid' given an
   // 'initial_pose_estimate' then updates 'pose_estimate' with the result and
   // returns the score.
   void Match(const transform::Rigid2d& initial_pose_estimate,
              const std::vector<Eigen::Vector3d>& point_cloud,
+             const ProbabilityGrid& probability_grid,
              transform::Rigid2d* pose_estimate, float* score) const;
 
   // Computes the score for each Candidate2D in a collection. The cost is
   // computed as the sum of probabilities or normalized TSD values, different
   // from the Ceres CostFunctions: http://ceres-solver.org/modeling.html
   // Visible for testing.
-  void ScoreCandidates(const std::vector<DiscreteScan2D>& discrete_scans,
+  void ScoreCandidates(const ProbabilityGrid& probability_grid,
+                       const std::vector<DiscreteScan2D>& discrete_scans,
                        const SearchParameters& search_parameters,
                        std::vector<Candidate2D>* candidates) const;
 
  private:
-  float ComputeCandidateScore(const DiscreteScan2D& discrete_scan,
+  float ComputeCandidateScore(const ProbabilityGrid& probability_grid,
+                              const DiscreteScan2D& discrete_scan,
                               int x_index_offset, int y_index_offset) const;
 
   std::vector<Candidate2D> GenerateExhaustiveSearchCandidates(
@@ -79,7 +79,6 @@ class RealTimeCorrelativeScanMatcher2D {
       const SearchParameters& search_parameters) const;
 
  private:
-  std::shared_ptr<ProbabilityGrid> probability_grid_;
   const RealTimeCorrelativeScanMatcherOptions2D options_;
 };
 

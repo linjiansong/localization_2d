@@ -24,54 +24,70 @@
 
 #pragma once
 
-#include <common/base_type.h>
-#include <common/rigid_transform.h>
-
-#include <Eigen/Core>
-#include <Eigen/Geometry>
 #include <memory>
 #include <vector>
 
+#include "Eigen/Core"
 #include "common/rigid_transform.h"
-#include "include/map_builder/active_map.h"
-#include "include/map_builder/icp_aligner.h"
-#include "include/map_builder/ndt_aligner.h"
-#include "include/scan_match/ceres_scan_matcher_2d.h"
-#include "include/scan_match/real_time_correlative_scan_matcher_2d.h"
+#include "common/sensor_type.h"
+#include "include/scan_match/laser_data_inserter.h"
+#include "include/scan_match/probability_grid.h"
+#include "include/scan_match/utility.h"
 
 namespace solex_robot::navigation::localization_2d {
-class LocalMapBuilder {
+
+inline float Logit(float probability) {
+  return std::log(probability / (1.f - probability));
+}
+
+const float kMaxLogOdds = Logit(kMaxProbability);
+const float kMinLogOdds = Logit(kMinProbability);
+
+// Converts a probability to a log odds integer. 0 means unknown, [kMinLogOdds,
+// kMaxLogOdds] is mapped to [1, 255].
+inline uint8_t ProbabilityToLogOddsInteger(const float probability) {
+  const int value = std::lround((Logit(probability) - kMinLogOdds) * 254.f /
+                                (kMaxLogOdds - kMinLogOdds)) +
+                    1;
+  CHECK_LE(1, value);
+  CHECK_GE(255, value);
+  return value;
+}
+
+class Submap {
  public:
-  LocalMapBuilder();
+  Submap(const Eigen::Vector2f& origin,
+         std::unique_ptr<ProbabilityGrid> probability_grid,
+         ValueConversionTables* conversion_tables);
 
-  void AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
-                     const transform::Rigid2d& initial_pose,
-                     transform::Rigid2d* final_pose, float* score,
-                     bool* is_keyframe);
+  transform::Rigid3d local_pose() const { return local_pose_; }
 
-  void AddLaserData(const sensor::LaserDataPtr& laser_data,
-                    const transform::Rigid2d& initial_pose,
-                    transform::Rigid2d* pose_estimate, float* score,
-                    bool* is_keyframe);
+  int num_laser_data() const { return num_laser_data_; }
+  void set_num_laser_data(const int num_laser_data) {
+    num_laser_data_ = num_laser_data;
+  }
 
-  const std::vector<std::shared_ptr<Submap>> GetLocalMap() const;
+  bool insertion_finished() const { return insertion_finished_; }
+  void set_insertion_finished(bool insertion_finished) {
+    insertion_finished_ = insertion_finished;
+  }
+
+  const ProbabilityGrid* probability_grid() const {
+    return probability_grid_.get();
+  }
+
+  // Insert 'laser_data' into this submap using 'laser_data_inserter'. The
+  // submap must not be finished yet.
+  void InsertLaserData(const sensor::LaserDataPtr& laser_data,
+                       const LaserDataInserter* laser_data_inserter);
+  void Finish();
 
  private:
-  bool IsKeyframe(const transform::Rigid2d& current_pose);
-  void MatchLocalMap(const transform::Rigid2d& pose_prediction,
-                     const std::vector<Eigen::Vector3d>& point_cloud,
-                     transform::Rigid2d* pose_estimate, float* score);
-
- private:
-  std::unique_ptr<NDTAligner> ndt_aligner_;
-  std::unique_ptr<ICPAligner> icp_aligner_;
-  std::unique_ptr<ActiveSubmap> active_submaps_;
-  std::unique_ptr<CeresScanMatcher2D> ceres_scan_matcher_;
-  std::unique_ptr<RealTimeCorrelativeScanMatcher2D>
-      real_time_correlative_scan_matcher_;
-  transform::Rigid2d last_keyframe_pose_;
-
-  std::vector<transform::Rigid2d> estimated_poses_;
+  const transform::Rigid3d local_pose_;
+  int num_laser_data_ = 0;
+  bool insertion_finished_ = false;
+  std::unique_ptr<ProbabilityGrid> probability_grid_;
+  ValueConversionTables* conversion_tables_;
 };
 
 }  // namespace solex_robot::navigation::localization_2d

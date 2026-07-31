@@ -22,56 +22,33 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#pragma once
+#include "include/map_builder/submap.h"
 
-#include <common/base_type.h>
-#include <common/rigid_transform.h>
-
-#include <Eigen/Core>
-#include <Eigen/Geometry>
-#include <memory>
-#include <vector>
-
-#include "common/rigid_transform.h"
-#include "include/map_builder/active_map.h"
-#include "include/map_builder/icp_aligner.h"
-#include "include/map_builder/ndt_aligner.h"
-#include "include/scan_match/ceres_scan_matcher_2d.h"
-#include "include/scan_match/real_time_correlative_scan_matcher_2d.h"
+#include <glog/logging.h>
 
 namespace solex_robot::navigation::localization_2d {
-class LocalMapBuilder {
- public:
-  LocalMapBuilder();
 
-  void AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
-                     const transform::Rigid2d& initial_pose,
-                     transform::Rigid2d* final_pose, float* score,
-                     bool* is_keyframe);
+Submap::Submap(const Eigen::Vector2f& origin,
+               std::unique_ptr<ProbabilityGrid> probability_grid,
+               ValueConversionTables* conversion_tables)
+    : local_pose_(transform::Rigid3d::Translation(
+          Eigen::Vector3d(origin.x(), origin.y(), 0.))),
+      conversion_tables_(conversion_tables),
+      probability_grid_(std::move(probability_grid)) {}
 
-  void AddLaserData(const sensor::LaserDataPtr& laser_data,
-                    const transform::Rigid2d& initial_pose,
-                    transform::Rigid2d* pose_estimate, float* score,
-                    bool* is_keyframe);
+void Submap::InsertLaserData(const sensor::LaserDataPtr& laser_data,
+                             const LaserDataInserter* laser_data_inserter) {
+  CHECK(probability_grid_);
+  CHECK(!insertion_finished());
+  laser_data_inserter->Insert(laser_data, probability_grid_.get());
+  ++num_laser_data_;
+}
 
-  const std::vector<std::shared_ptr<Submap>> GetLocalMap() const;
-
- private:
-  bool IsKeyframe(const transform::Rigid2d& current_pose);
-  void MatchLocalMap(const transform::Rigid2d& pose_prediction,
-                     const std::vector<Eigen::Vector3d>& point_cloud,
-                     transform::Rigid2d* pose_estimate, float* score);
-
- private:
-  std::unique_ptr<NDTAligner> ndt_aligner_;
-  std::unique_ptr<ICPAligner> icp_aligner_;
-  std::unique_ptr<ActiveSubmap> active_submaps_;
-  std::unique_ptr<CeresScanMatcher2D> ceres_scan_matcher_;
-  std::unique_ptr<RealTimeCorrelativeScanMatcher2D>
-      real_time_correlative_scan_matcher_;
-  transform::Rigid2d last_keyframe_pose_;
-
-  std::vector<transform::Rigid2d> estimated_poses_;
-};
+void Submap::Finish() {
+  CHECK(probability_grid_);
+  CHECK(!insertion_finished());
+  probability_grid_ = probability_grid_->ComputeCroppedGrid();
+  insertion_finished_ = true;
+}
 
 }  // namespace solex_robot::navigation::localization_2d

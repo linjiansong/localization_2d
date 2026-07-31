@@ -38,7 +38,7 @@ namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr double kDegreeToRadian = M_PI / 180.0;
 
-constexpr int kOptimizeNodeInterval = 1;
+constexpr int kOptimizeNodeInterval = 5;
 constexpr int kMaxNodeBufferLength = 20;
 
 constexpr int kMaxIterationsNum = 50;
@@ -82,8 +82,8 @@ void PoseGraph::ComputeLocalConstraint(
   transform::Rigid2d real_time_pose_estimate;
   float real_time_score = 0.0;
   real_time_correlative_scan_matcher_->Match(
-      initial_pose_estimate, constraint_data->points, &real_time_pose_estimate,
-      &real_time_score);
+      initial_pose_estimate, constraint_data->points, *probability_grid_,
+      &real_time_pose_estimate, &real_time_score);
 
   float ceres_match_score = real_time_score;
   transform::Rigid2d ceres_pose_estimate = real_time_pose_estimate;
@@ -153,7 +153,10 @@ void PoseGraph::ComputeGlobalConstraint(
       constraint_data->points, kMinGlobalLocalizationScore, &fast_match_score,
       &fast_pose_estimate);
 
-  LOG(INFO) << "fast_match_score = " << fast_match_score;
+  LOG(INFO) << "fast_pose_estimate = [" << fast_pose_estimate.translation().x()
+            << ", " << fast_pose_estimate.translation().y() << ", "
+            << fast_pose_estimate.rotation().angle()
+            << "], fast_match_score = " << fast_match_score;
 
   float ceres_match_score = fast_match_score;
   transform::Rigid2d ceres_pose_estimate = fast_pose_estimate;
@@ -274,8 +277,8 @@ void PoseGraph::GlobalOptimize() {
         optimized_node_->optimized_pose.inverse() *
         optimized_node_->constraint_data->global_pose;
 
-    // LOG(INFO) << "delta_pose = " << delta_pose.translation().norm()
-    //           << ", angle = " << delta_pose.rotation().angle();
+    LOG(INFO) << "delta_pose = " << delta_pose.translation().norm()
+              << ", angle = " << delta_pose.rotation().angle();
   }
 
   const auto t1 = std::chrono::steady_clock::now();
@@ -297,8 +300,7 @@ void PoseGraph::Init() {
   real_time_options.translation_delta_cost_weight = 0.1;
   real_time_options.rotation_delta_cost_weight = 0.1;
   real_time_correlative_scan_matcher_ =
-      std::make_shared<RealTimeCorrelativeScanMatcher2D>(probability_grid_,
-                                                         real_time_options);
+      std::make_shared<RealTimeCorrelativeScanMatcher2D>(real_time_options);
 
   FastCorrelativeScanMatcherOptions2D fast_options;
   fast_options.linear_search_window = 8.0;

@@ -23,55 +23,40 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
-
-#include <common/base_type.h>
-#include <common/rigid_transform.h>
-
-#include <Eigen/Core>
-#include <Eigen/Geometry>
 #include <memory>
 #include <vector>
 
-#include "common/rigid_transform.h"
-#include "include/map_builder/active_map.h"
-#include "include/map_builder/icp_aligner.h"
-#include "include/map_builder/ndt_aligner.h"
-#include "include/scan_match/ceres_scan_matcher_2d.h"
-#include "include/scan_match/real_time_correlative_scan_matcher_2d.h"
+#include "Eigen/Core"
+#include "common/sensor_type.h"
+#include "include/map_builder/submap.h"
+#include "include/scan_match/laser_data_inserter.h"
+#include "include/scan_match/utility.h"
 
 namespace solex_robot::navigation::localization_2d {
-class LocalMapBuilder {
+class ActiveSubmap {
  public:
-  LocalMapBuilder();
+  explicit ActiveSubmap()
+      : laser_data_inserter_(std::make_unique<LaserDataInserter>()) {}
 
-  void AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
-                     const transform::Rigid2d& initial_pose,
-                     transform::Rigid2d* final_pose, float* score,
-                     bool* is_keyframe);
+  ActiveSubmap(const ActiveSubmap&) = delete;
+  ActiveSubmap& operator=(const ActiveSubmap&) = delete;
 
-  void AddLaserData(const sensor::LaserDataPtr& laser_data,
-                    const transform::Rigid2d& initial_pose,
-                    transform::Rigid2d* pose_estimate, float* score,
-                    bool* is_keyframe);
+  // Inserts 'laser_data' into the Submap collection.
+  void InsertLaserData(const sensor::LaserDataPtr& laser_data);
 
-  const std::vector<std::shared_ptr<Submap>> GetLocalMap() const;
-
- private:
-  bool IsKeyframe(const transform::Rigid2d& current_pose);
-  void MatchLocalMap(const transform::Rigid2d& pose_prediction,
-                     const std::vector<Eigen::Vector3d>& point_cloud,
-                     transform::Rigid2d* pose_estimate, float* score);
+  const std::vector<std::shared_ptr<Submap>>& submaps() const {
+    return submaps_;
+  }
 
  private:
-  std::unique_ptr<NDTAligner> ndt_aligner_;
-  std::unique_ptr<ICPAligner> icp_aligner_;
-  std::unique_ptr<ActiveSubmap> active_submaps_;
-  std::unique_ptr<CeresScanMatcher2D> ceres_scan_matcher_;
-  std::unique_ptr<RealTimeCorrelativeScanMatcher2D>
-      real_time_correlative_scan_matcher_;
-  transform::Rigid2d last_keyframe_pose_;
+  std::unique_ptr<ProbabilityGrid> CreateGrid(const Eigen::Vector2f& origin);
+  void FinishSubmap();
+  void AddSubmap(const Eigen::Vector2f& origin);
 
-  std::vector<transform::Rigid2d> estimated_poses_;
+ private:
+  const std::unique_ptr<LaserDataInserter> laser_data_inserter_;
+  std::vector<std::shared_ptr<Submap>> submaps_;
+  ValueConversionTables conversion_tables_;
 };
 
 }  // namespace solex_robot::navigation::localization_2d

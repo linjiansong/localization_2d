@@ -49,7 +49,7 @@ class PoseExtrapolator {
 
   static std::unique_ptr<PoseExtrapolator> InitializeWithImu(
       double pose_queue_duration, double imu_gravity_time_constant,
-      const sensor::ImuData& imu_data);
+      const sensor::ImuDataPtr& imu_data);
 
   // Returns the time of the last added pose or Time::min() if no pose was added
   // yet.
@@ -57,8 +57,8 @@ class PoseExtrapolator {
   double GetLastExtrapolatedTime() const;
 
   void AddPose(double time, const transform::Rigid3d& pose);
-  void AddImuData(const sensor::ImuData& imu_data);
-  void AddOdometryData(const sensor::OdometryData& odometry_data);
+  void AddImuData(const sensor::ImuDataPtr& imu_data);
+  void AddOdometryData(const sensor::OdometryDataPtr& odometry_data);
   transform::Rigid3d ExtrapolatePose(double time);
 
   // ExtrapolationResult ExtrapolatePosesWithGravity(
@@ -93,13 +93,13 @@ class PoseExtrapolator {
   Eigen::Vector3d linear_velocity_from_poses_ = Eigen::Vector3d::Zero();
   Eigen::Vector3d angular_velocity_from_poses_ = Eigen::Vector3d::Zero();
 
-  std::deque<sensor::ImuData> imu_data_;
+  std::deque<sensor::ImuDataPtr> imu_data_;
   std::unique_ptr<ImuTracker> imu_tracker_;
   std::unique_ptr<ImuTracker> odometry_imu_tracker_;
   std::unique_ptr<ImuTracker> extrapolation_imu_tracker_;
   TimedPose cached_extrapolated_pose_;
 
-  std::deque<sensor::OdometryData> odometry_data_;
+  std::deque<sensor::OdometryDataPtr> odometry_data_;
   Eigen::Vector3d linear_velocity_from_odometry_ = Eigen::Vector3d::Zero();
   Eigen::Vector3d angular_velocity_from_odometry_ = Eigen::Vector3d::Zero();
 };

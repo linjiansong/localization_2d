@@ -49,7 +49,7 @@ class CeresScanMatcher2D {
   // 'summary'.
   void Match(const transform::Rigid2d& initial_pose_estimate,
              const std::vector<Eigen::Vector3d>& point_cloud,
-             const std::shared_ptr<ProbabilityGrid> probability_grid,
+             const ProbabilityGrid& probability_grid,
              transform::Rigid2d* const pose_estimate, float* const score);
 };
 

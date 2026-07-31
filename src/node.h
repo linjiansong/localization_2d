@@ -57,6 +57,7 @@ class LocalizationNode : public rclcpp::Node {
 
   void PublishTransform();
   void PublishRobotPose();
+  void PublishLocalMap();
 
  private:
   // subscriber
@@ -75,10 +76,13 @@ class LocalizationNode : public rclcpp::Node {
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
       point_cloud_publisher_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_publisher_;
+  rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr
+      local_map_publisher_;
 
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
   rclcpp::TimerBase::SharedPtr timer_;
+  rclcpp::TimerBase::SharedPtr local_map_timer_;
   std::unique_ptr<Localization> locator_;
 
   std::mutex mutex_;
