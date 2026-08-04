@@ -38,8 +38,8 @@ namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr double kDegreeToRadian = M_PI / 180.0;
 
-constexpr int kOptimizeNodeInterval = 5;
-constexpr int kMaxNodeBufferLength = 20;
+constexpr int kOptimizeNodeInterval = 1;
+constexpr int kMaxNodeBufferLength = 40;
 
 constexpr int kMaxIterationsNum = 50;
 constexpr int kThreadNum = 8;
@@ -51,6 +51,7 @@ constexpr std::array<double, 6> kFixedPoseWeiht = {1.e3, 1.e3, 1.e3,
 
 constexpr int kFixedPoseHuberLoss = 20.0;
 constexpr int kMinGlobalLocalizationScore = 0.3;
+constexpr int kMinRelocalizationScore = 0.4;
 
 Eigen::Matrix4d ToMatrix4d(const transform::Rigid2d& rigid_pose) {
   Eigen::Matrix4d eigen_pose = Eigen::Matrix4d::Identity();
@@ -64,7 +65,7 @@ Eigen::Matrix4d ToMatrix4d(const transform::Rigid2d& rigid_pose) {
 
 }  // namespace
 
-void PoseGraph::ComputeLocalConstraint(
+void PoseGraph::ComputeTrackConstraint(
     const ConstraintDataPtr& constraint_data) {
   transform::Rigid2d initial_pose_estimate = transform::Rigid2d::Identity();
   {
@@ -181,6 +182,44 @@ void PoseGraph::ComputeGlobalConstraint(
   AddNode(new_node);
 }
 
+void PoseGraph::ComputeLocalConstraint(
+    const ConstraintDataPtr& constraint_data) {
+  CHECK_NOTNULL(fast_correlative_scan_matcher_);
+
+  float fast_match_score = 0.f;
+  transform::Rigid2d fast_pose_estimate;
+  fast_correlative_scan_matcher_->MatchLocalSubmap(
+      constraint_data->initial_pose_estimate, constraint_data->points,
+      kMinRelocalizationScore, &fast_match_score, &fast_pose_estimate);
+
+  LOG(INFO) << "fast_pose_estimate = [" << fast_pose_estimate.translation().x()
+            << ", " << fast_pose_estimate.translation().y() << ", "
+            << fast_pose_estimate.rotation().angle()
+            << "], fast_match_score = " << fast_match_score;
+
+  float ceres_match_score = fast_match_score;
+  transform::Rigid2d ceres_pose_estimate = fast_pose_estimate;
+  // float ceres_match_score = 0.0;
+  // transform::Rigid2d ceres_pose_estimate;
+  // ceres_scan_matcher_->Match(fast_pose_estimate, constraint_data->points,
+  //                            probability_grid_, &ceres_pose_estimate,
+  //                            &ceres_match_score);
+  // LOG(INFO) << "ceres_match_score = " << ceres_match_score;
+  if (ceres_match_score < kMinRelocalizationScore) {
+    return;
+  }
+
+  constraint_data->global_pose = ceres_pose_estimate;
+  constraint_data->global_pose_score = ceres_match_score;
+
+  const NodePtr new_node = std::make_shared<Node>();
+  new_node->timestamp = constraint_data->timestamp;
+  new_node->constraint_data = constraint_data;
+  new_node->optimized_pose = ceres_pose_estimate;
+
+  AddNode(new_node);
+}
+
 void PoseGraph::TrimNodeBuffer() {
   while (node_buffer_.size() > kMaxNodeBufferLength) {
     node_buffer_.pop_front();
@@ -188,7 +227,7 @@ void PoseGraph::TrimNodeBuffer() {
 }
 
 void PoseGraph::GlobalOptimize() {
-  const auto t0 = std::chrono::steady_clock::now();
+  // const auto t0 = std::chrono::steady_clock::now();
 
   std::vector<NodePtr> nodes;
   {
@@ -281,11 +320,11 @@ void PoseGraph::GlobalOptimize() {
               << ", angle = " << delta_pose.rotation().angle();
   }
 
-  const auto t1 = std::chrono::steady_clock::now();
-  LOG(INFO)
-      << "Global optimization takes "
-      << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()
-      << "ms";
+  // const auto t1 = std::chrono::steady_clock::now();
+  // LOG(INFO)
+  //     << "Global optimization takes "
+  //     << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()
+  //     << "ms";
 }
 
 void PoseGraph::Init() {
@@ -411,10 +450,21 @@ void PoseGraph::ConstraintLoop() {
       }
     }
 
-    if (constraint_data->constraint_type == ConstraintType::kGlobal) {
-      ComputeGlobalConstraint(constraint_data);
-    } else {
-      ComputeLocalConstraint(constraint_data);
+    switch (constraint_data->constraint_type) {
+      case ConstraintType::kTrack: {
+        ComputeTrackConstraint(constraint_data);
+        break;
+      }
+      case ConstraintType::kLocal: {
+        ComputeLocalConstraint(constraint_data);
+        break;
+      }
+      case ConstraintType::kGlobal: {
+        ComputeGlobalConstraint(constraint_data);
+        break;
+      }
+      default:
+        break;
     }
   }
 }
@@ -429,11 +479,32 @@ void PoseGraph::AddNode(const NodePtr node) {
   optimization_condition_.notify_one();
 }
 
-void PoseGraph::AddGlobalConstraint(
-    const double timestamp, const std::vector<Eigen::Vector3d>& points) {
+void PoseGraph::AddTrackingConstraint(
+    const double timestamp, const std::vector<Eigen::Vector3d>& points,
+    const transform::Rigid2d& local_pose, float local_pose_score) {
   ConstraintDataPtr constraint_data = std::make_shared<ConstraintData>();
   constraint_data->timestamp = timestamp;
-  constraint_data->constraint_type = ConstraintType::kGlobal;
+  constraint_data->constraint_type = ConstraintType::kTrack;
+  constraint_data->points = points;
+  constraint_data->local_pose = local_pose;
+  constraint_data->local_pose_score = local_pose_score;
+
+  {
+    std::unique_lock<std::mutex> lock(constraint_data_buffer_mutex_);
+    constraint_data_buffer_.emplace_back(constraint_data);
+  }
+
+  // 唤醒后台优化线程
+  constraint_condition_.notify_one();
+}
+
+void PoseGraph::AddLocalMatchConstraint(
+    const double timestamp, const std::vector<Eigen::Vector3d>& points,
+    const transform::Rigid2d& initial_pose_estimate) {
+  ConstraintDataPtr constraint_data = std::make_shared<ConstraintData>();
+  constraint_data->timestamp = timestamp;
+  constraint_data->constraint_type = ConstraintType::kLocal;
+  constraint_data->initial_pose_estimate = initial_pose_estimate;
   constraint_data->points = points;
   constraint_data->local_pose = transform::Rigid2d::Identity();
   constraint_data->local_pose_score = 1.0;
@@ -447,16 +518,14 @@ void PoseGraph::AddGlobalConstraint(
   constraint_condition_.notify_one();
 }
 
-void PoseGraph::AddLocalConstraint(const double timestamp,
-                                   const std::vector<Eigen::Vector3d>& points,
-                                   const transform::Rigid2d& local_pose,
-                                   float local_pose_score) {
+void PoseGraph::AddGlobalMatchConstraint(
+    const double timestamp, const std::vector<Eigen::Vector3d>& points) {
   ConstraintDataPtr constraint_data = std::make_shared<ConstraintData>();
   constraint_data->timestamp = timestamp;
-  constraint_data->constraint_type = ConstraintType::kTrack;
+  constraint_data->constraint_type = ConstraintType::kGlobal;
   constraint_data->points = points;
-  constraint_data->local_pose = local_pose;
-  constraint_data->local_pose_score = local_pose_score;
+  constraint_data->local_pose = transform::Rigid2d::Identity();
+  constraint_data->local_pose_score = 1.0;
 
   {
     std::unique_lock<std::mutex> lock(constraint_data_buffer_mutex_);

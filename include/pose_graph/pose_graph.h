@@ -42,13 +42,14 @@
 
 namespace solex_robot::navigation::localization_2d {
 
-enum class ConstraintType { kUnknown = 0, kGlobal = 1, kTrack = 2 };
+enum class ConstraintType { kUnknown = 0, kGlobal = 1, kLocal = 2, kTrack = 3 };
 
 using PosePtr = std::shared_ptr<double[]>;
 
 struct ConstraintData {
   double timestamp = 0.0;
   ConstraintType constraint_type = ConstraintType::kUnknown;
+  transform::Rigid2d initial_pose_estimate;
   std::vector<Eigen::Vector3d> points;
   transform::Rigid2d local_pose;  // scan to submap
   float local_pose_score;
@@ -80,12 +81,15 @@ class PoseGraph {
   void Finish();
   void Reset();
 
-  void AddGlobalConstraint(const double timestamp,
-                           const std::vector<Eigen::Vector3d>& points);
-  void AddLocalConstraint(const double timestamp,
-                          const std::vector<Eigen::Vector3d>& points,
-                          const transform::Rigid2d& local_pose,
-                          float local_pose_score);
+  void AddTrackingConstraint(const double timestamp,
+                             const std::vector<Eigen::Vector3d>& points,
+                             const transform::Rigid2d& local_pose,
+                             float local_pose_score);
+  void AddLocalMatchConstraint(const double timestamp,
+                               const std::vector<Eigen::Vector3d>& points,
+                               const transform::Rigid2d& initial_pose_estimate);
+  void AddGlobalMatchConstraint(const double timestamp,
+                                const std::vector<Eigen::Vector3d>& points);
 
   NodePtr optimized_node() {
     std::unique_lock<std::mutex> buffer_lock(optimized_node_mutex_);
@@ -93,6 +97,7 @@ class PoseGraph {
   }
 
  private:
+  void ComputeTrackConstraint(const ConstraintDataPtr& constraint_data);
   void ComputeGlobalConstraint(const ConstraintDataPtr& constraint_data);
   void ComputeLocalConstraint(const ConstraintDataPtr& constraint_data);
 

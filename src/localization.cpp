@@ -76,7 +76,7 @@ void Localization::GlobalLocalization(const sensor::LaserDataPtr& laser_data) {
   localization_status_ = LocalizationStatus::kRoaming;
   pose_graph_->Reset();
 
-  pose_graph_->AddGlobalConstraint(laser_data->timestamp(),
+  pose_graph_->AddGlobalMatchConstraint(laser_data->timestamp(),
                                    ConvertPoint(laser_data->hitting_points()));
 
   local_map_builder_ = std::make_shared<LocalMapBuilder>();
@@ -121,17 +121,17 @@ void Localization::Track(const sensor::LaserDataPtr& laser_data) {
   }
 
   if (localization_status_ == LocalizationStatus::kSuccess) {
-    pose_graph_->AddLocalConstraint(laser_data->timestamp(),
+    pose_graph_->AddTrackingConstraint(laser_data->timestamp(),
                                     ConvertPoint(laser_data->hitting_points()),
                                     local_pose_estimate, local_pose_score);
   }
 
   // if (localization_status_ == LocalizationStatus::kSuccess) {
-  //   pose_graph_->AddLocalConstraint(laser_data->timestamp(),
+  //   pose_graph_->AddTrackingConstraint(laser_data->timestamp(),
   //                                   ConvertPoint(laser_data->hitting_points()),
   //                                   local_pose_estimate, local_pose_score);
   // } else if (localization_status_ == LocalizationStatus::kRoaming) {
-  //   pose_graph_->AddLocalConstraint(laser_data->timestamp(),
+  //   pose_graph_->AddTrackingConstraint(laser_data->timestamp(),
   //                                   ConvertPoint(laser_data->hitting_points()),
   //                                   local_pose_estimate, local_pose_score);
   // }
