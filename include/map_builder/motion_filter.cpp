@@ -5,8 +5,8 @@
 //  All users are hereby notified that the materials in the form of digital   //
 //  information available from this software (content, designs, color         //
 //  schemes, graphic styles, images, logo, text, and videos) comes protected  //
-//  under International Copyright Laws. Therefore it should not be reproduced //
-//  in any form digital or offline without prior written permission of        //
+//  under International Copyright Laws. Therefore iter should not be reproduced
+//  // in any form digital or offline without prior written permission of //
 //  Solex Robot.                                                              //
 //                                                                            //
 //  Any unauthorized reprint or material usage (Solex Robot) either manually  //
@@ -22,53 +22,35 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#pragma once
-
-#include <common/base_type.h>
-#include <common/rigid_transform.h>
-
-#include <Eigen/Core>
-#include <Eigen/Geometry>
-#include <memory>
-#include <vector>
-
-#include "common/rigid_transform.h"
-#include "include/map_builder/active_map.h"
 #include "include/map_builder/motion_filter.h"
-#include "include/map_builder/icp_aligner.h"
-#include "include/map_builder/ndt_aligner.h"
-#include "include/scan_match/ceres_scan_matcher_2d.h"
-#include "include/scan_match/real_time_correlative_scan_matcher_2d.h"
+
+#include "glog/logging.h"
 
 namespace solex_robot::navigation::localization_2d {
-class LocalMapBuilder {
- public:
-  LocalMapBuilder();
+namespace {
+constexpr double kDegreeToRadian = M_PI / 180.0;
+constexpr double kRadianToDegree = 180.0 / M_PI;
+constexpr double kMinTimeInterval = 5.0;  // second
+constexpr double kMinDistance = 0.2;      // meter
+constexpr double kMinAngle = 5.0;         // degree
+}  // namespace
 
-  void AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
-                     const transform::Rigid2d& initial_pose,
-                     transform::Rigid2d* final_pose, float* score,
-                     bool* is_keyframe);
+bool MotionFilter::IsSimilar(const double time,
+                             const transform::Rigid3d& pose) {
+  LOG_IF_EVERY_N(INFO, num_total_ >= 500, 500)
+      << "Motion filter reduced the number of nodes to "
+      << 100. * num_different_ / num_total_ << "%.";
+  ++num_total_;
+  if (num_total_ > 1 && time - last_time_ <= kMinTimeInterval &&
+      (pose.translation() - last_pose_.translation()).norm() <= kMinDistance &&
+      transform::GetAngle(pose.inverse() * last_pose_) <= kMinAngle) {
+    return true;
+  }
 
-  void AddLaserData(const sensor::LaserDataPtr& laser_data,
-                    const transform::Rigid2d& initial_pose,
-                    transform::Rigid2d* pose_estimate, float* score,
-                    bool* is_keyframe);
-
-  const std::vector<std::shared_ptr<Submap>> GetLocalMap() const;
-
- private:
-  bool IsKeyframe(const transform::Rigid2d& current_pose);
-
- private:
-  std::unique_ptr<MotionFilter> motion_filter_;
-  std::unique_ptr<NDTAligner> ndt_aligner_;
-  std::unique_ptr<ICPAligner> icp_aligner_;
-  std::unique_ptr<ActiveSubmap> active_submaps_;
-  std::unique_ptr<CeresScanMatcher2D> ceres_scan_matcher_;
-  std::unique_ptr<RealTimeCorrelativeScanMatcher2D>
-      real_time_correlative_scan_matcher_;
-  std::vector<transform::Rigid2d> estimated_poses_;
-};
+  last_time_ = time;
+  last_pose_ = pose;
+  ++num_different_;
+  return false;
+}
 
 }  // namespace solex_robot::navigation::localization_2d

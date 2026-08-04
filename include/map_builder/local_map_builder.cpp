@@ -30,13 +30,11 @@ namespace solex_robot::navigation::localization_2d {
 
 namespace {
 constexpr double kDegreeToRadian = M_PI / 180.0;
-constexpr double kRadianToDegree = 180.0 / M_PI;
-constexpr double kKeyframeMinDistance = 0.1;  // meter
-constexpr double kKeyframeMinAngle = 1.0;     // degree
 }  // namespace
 
 LocalMapBuilder::LocalMapBuilder()
-    : ndt_aligner_(std::make_unique<NDTAligner>()),
+    : motion_filter_(std::make_unique<MotionFilter>()),
+      ndt_aligner_(std::make_unique<NDTAligner>()),
       icp_aligner_(std::make_unique<ICPAligner>()),
       active_submaps_(std::make_unique<ActiveSubmap>()),
       ceres_scan_matcher_(std::make_unique<CeresScanMatcher2D>()) {
@@ -49,16 +47,6 @@ LocalMapBuilder::LocalMapBuilder()
       std::make_unique<RealTimeCorrelativeScanMatcher2D>(real_time_options);
 }
 
-bool LocalMapBuilder::IsKeyframe(const transform::Rigid2d& current_pose) {
-  const transform::Rigid2d delta_pose =
-      last_keyframe_pose_.inverse() * current_pose;
-  const double distance = delta_pose.translation().norm();  // meter
-  const double angle =
-      delta_pose.rotation().angle() * kRadianToDegree;  // degree
-
-  return distance > kKeyframeMinDistance || angle > kKeyframeMinAngle;
-}
-
 void LocalMapBuilder::AddLaserData(const sensor::LaserDataPtr& laser_data,
                                    const transform::Rigid2d& initial_pose,
                                    transform::Rigid2d* pose_estimate,
@@ -69,7 +57,6 @@ void LocalMapBuilder::AddLaserData(const sensor::LaserDataPtr& laser_data,
     *pose_estimate = initial_pose;
     *score = 1.0;
     *is_keyframe = true;
-    last_keyframe_pose_ = initial_pose;
     return;
   }
 
@@ -99,14 +86,13 @@ void LocalMapBuilder::AddLaserData(const sensor::LaserDataPtr& laser_data,
 
   *pose_estimate = ceres_pose_estimate;
   *score = ceres_match_score;
-  if (!IsKeyframe(*pose_estimate)) {
+  if (motion_filter_->IsSimilar(laser_data->timestamp(),
+                                transform::Embed3D(*pose_estimate))) {
     *is_keyframe = false;
     return;
   }
 
   *is_keyframe = true;
-  last_keyframe_pose_ = *pose_estimate;
-
   laser_data->set_pose(transform::Embed3D(*pose_estimate));
   active_submaps_->InsertLaserData(laser_data);
   // LOG(INFO) << "pose_estimate = [" << pose_estimate->translation().x() << ",
@@ -120,7 +106,6 @@ void LocalMapBuilder::AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
                                     transform::Rigid2d* pose_estimate,
                                     float* score, bool* is_keyframe) {
   if (estimated_poses_.empty()) {
-    last_keyframe_pose_ = initial_pose;
     // ndt_aligner_ = std::make_unique<NDTAligner>();
     // ndt_aligner_->AddPointCloud(point_cloud);
 
@@ -143,8 +128,8 @@ void LocalMapBuilder::AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
   // LOG(INFO) << "delta = " << delta_pose.translation().x() << ", "
   //           << delta_pose.translation().x() << ", "
   //           << delta_pose.rotation().angle() * 180 / M_PI;
-
-  if (!IsKeyframe(*pose_estimate)) {
+  if (motion_filter_->IsSimilar(0.0,
+                                transform::Embed3D(*pose_estimate))) {  // Todo
     *is_keyframe = false;
     return;
   }
@@ -164,9 +149,6 @@ void LocalMapBuilder::AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
 
   // ndt_aligner_->AddPointCloud(transformed_points);
   icp_aligner_->AddPointCloud(transformed_points);
-
-  // update last keyframe
-  last_keyframe_pose_ = *pose_estimate;
 }
 
 const std::vector<std::shared_ptr<Submap>> LocalMapBuilder::GetLocalMap()

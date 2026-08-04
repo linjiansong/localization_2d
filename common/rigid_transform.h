@@ -42,11 +42,11 @@ T NormalizeAngleDifference(T difference) {
   return difference;
 }
 
-template <typename FloatType>
+template <typename T>
 class Rigid2 {
  public:
-  using Vector = Eigen::Matrix<FloatType, 2, 1>;
-  using Rotation2D = Eigen::Rotation2D<FloatType>;
+  using Vector = Eigen::Matrix<T, 2, 1>;
+  using Rotation2D = Eigen::Rotation2D<T>;
 
   Rigid2() : translation_(Vector::Zero()), rotation_(Rotation2D::Identity()) {}
   Rigid2(const Vector& translation, const Rotation2D& rotation)
@@ -66,7 +66,7 @@ class Rigid2 {
     return Rigid2(vector, Rotation2D::Identity());
   }
 
-  static Rigid2<FloatType> Identity() { return Rigid2<FloatType>(); }
+  static Rigid2<T> Identity() { return Rigid2<T>(); }
 
   template <typename OtherType>
   Rigid2<OtherType> cast() const {
@@ -93,18 +93,15 @@ class Rigid2 {
   Rotation2D rotation_;
 };
 
-template <typename FloatType>
-Rigid2<FloatType> operator*(const Rigid2<FloatType>& lhs,
-                            const Rigid2<FloatType>& rhs) {
-  return Rigid2<FloatType>(
-      lhs.rotation() * rhs.translation() + lhs.translation(),
-      lhs.rotation() * rhs.rotation());
+template <typename T>
+Rigid2<T> operator*(const Rigid2<T>& lhs, const Rigid2<T>& rhs) {
+  return Rigid2<T>(lhs.rotation() * rhs.translation() + lhs.translation(),
+                   lhs.rotation() * rhs.rotation());
 }
 
-template <typename FloatType>
-typename Rigid2<FloatType>::Vector operator*(
-    const Rigid2<FloatType>& rigid,
-    const typename Rigid2<FloatType>::Vector& point) {
+template <typename T>
+typename Rigid2<T>::Vector operator*(const Rigid2<T>& rigid,
+                                     const typename Rigid2<T>::Vector& point) {
   return rigid.rotation() * point + rigid.translation();
 }
 
@@ -118,12 +115,12 @@ std::ostream& operator<<(std::ostream& os, const Rigid2<T>& rigid) {
 using Rigid2d = Rigid2<double>;
 using Rigid2f = Rigid2<float>;
 
-template <typename FloatType>
+template <typename T>
 class Rigid3 {
  public:
-  using Vector = Eigen::Matrix<FloatType, 3, 1>;
-  using Quaternion = Eigen::Quaternion<FloatType>;
-  using AngleAxis = Eigen::AngleAxis<FloatType>;
+  using Vector = Eigen::Matrix<T, 3, 1>;
+  using Quaternion = Eigen::Quaternion<T>;
+  using AngleAxis = Eigen::AngleAxis<T>;
 
   Rigid3() : translation_(Vector::Zero()), rotation_(Quaternion::Identity()) {}
   Rigid3(const Vector& translation, const Quaternion& rotation)
@@ -143,14 +140,14 @@ class Rigid3 {
     return Rigid3(vector, Quaternion::Identity());
   }
 
-  static Rigid3 FromArrays(const std::array<FloatType, 4>& rotation,
-                           const std::array<FloatType, 3>& translation) {
+  static Rigid3 FromArrays(const std::array<T, 4>& rotation,
+                           const std::array<T, 3>& translation) {
     return Rigid3(Eigen::Map<const Vector>(translation.data()),
-                  Eigen::Quaternion<FloatType>(rotation[0], rotation[1],
-                                               rotation[2], rotation[3]));
+                  Eigen::Quaternion<T>(rotation[0], rotation[1], rotation[2],
+                                       rotation[3]));
   }
 
-  static Rigid3<FloatType> Identity() { return Rigid3<FloatType>(); }
+  static Rigid3<T> Identity() { return Rigid3<T>(); }
 
   template <typename OtherType>
   Rigid3<OtherType> cast() const {
@@ -170,7 +167,7 @@ class Rigid3 {
   bool IsValid() const {
     return !std::isnan(translation_.x()) && !std::isnan(translation_.y()) &&
            !std::isnan(translation_.z()) &&
-           std::abs(FloatType(1) - rotation_.norm()) < FloatType(1e-3);
+           std::abs(T(1) - rotation_.norm()) < T(1e-3);
   }
 
  private:
@@ -178,18 +175,15 @@ class Rigid3 {
   Quaternion rotation_;
 };
 
-template <typename FloatType>
-Rigid3<FloatType> operator*(const Rigid3<FloatType>& lhs,
-                            const Rigid3<FloatType>& rhs) {
-  return Rigid3<FloatType>(
-      lhs.rotation() * rhs.translation() + lhs.translation(),
-      (lhs.rotation() * rhs.rotation()).normalized());
+template <typename T>
+Rigid3<T> operator*(const Rigid3<T>& lhs, const Rigid3<T>& rhs) {
+  return Rigid3<T>(lhs.rotation() * rhs.translation() + lhs.translation(),
+                   (lhs.rotation() * rhs.rotation()).normalized());
 }
 
-template <typename FloatType>
-typename Rigid3<FloatType>::Vector operator*(
-    const Rigid3<FloatType>& rigid,
-    const typename Rigid3<FloatType>::Vector& point) {
+template <typename T>
+typename Rigid3<T>::Vector operator*(const Rigid3<T>& rigid,
+                                     const typename Rigid3<T>::Vector& point) {
   return rigid.rotation() * point + rigid.translation();
 }
 
@@ -212,6 +206,12 @@ T GetYaw(const Eigen::Quaternion<T>& rotation) {
 template <typename T>
 T GetYaw(const Rigid3<T>& transform) {
   return GetYaw(transform.rotation());
+}
+
+template <typename T>
+T GetAngle(const Rigid3<T>& transform) {
+  return T(2) * std::atan2(transform.rotation().vec().norm(),
+                           std::abs(transform.rotation().w()));
 }
 
 template <typename T>

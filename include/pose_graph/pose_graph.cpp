@@ -25,6 +25,7 @@
 #include "include/pose_graph/pose_graph.h"
 
 #include <memory>
+#include <opencv2/opencv.hpp>
 #include <vector>
 
 #include "Eigen/Core"
@@ -98,6 +99,8 @@ void PoseGraph::ComputeTrackConstraint(
     return;
   }
 
+  LOG(INFO) << "ceres_match_score = " << ceres_match_score;
+
   constraint_data->global_pose = ceres_pose_estimate;
   constraint_data->global_pose_score = ceres_match_score;
 
@@ -108,40 +111,33 @@ void PoseGraph::ComputeTrackConstraint(
 
   AddNode(new_node);
 
-  const transform::Rigid2d delta_pose =
-      initial_pose_estimate.inverse() * ceres_pose_estimate;
-  // LOG(INFO) << "delta = " << delta_pose.translation().x() << ", "
-  //           << delta_pose.translation().x() << ", "
-  //           << delta_pose.rotation().angle() * 180 / M_PI;
+  {
+    static int count = 0;
+    const MapLimits& map_limits = probability_grid_->map_limits();
+    const int width = map_limits.cell_limits().num_x_cells;
+    const int height = map_limits.cell_limits().num_y_cells;
 
-  //   {
-  //     const MapLimits& map_limits = probability_grid_->map_limits();
-  //     const int width = map_limits.cell_limits().num_x_cells;
-  //     const int height = map_limits.cell_limits().num_y_cells;
+    cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        const Eigen::Array2i index(x, y);
+        const double probability = probability_grid_->GetProbability(index);
+        const uint8_t value = 255 * (1.0 - probability);
+        image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
+      }
+    }
 
-  //     cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
-  //     for (int y = 0; y < height; ++y) {
-  //       for (int x = 0; x < width; ++x) {
-  //         const Eigen::Array2i index(x, y);
-  //         const double probability =
-  //         probability_grid_->GetProbability(index); const uint8_t value =
-  //         255
-  //         * (1.0 - probability); image.at<cv::Vec3b>(y, x) =
-  //         cv::Vec3b(value, value, value);
-  //       }
-  //     }
+    for (const Eigen::Vector3d& point : constraint_data->points) {
+      const Eigen::Vector2d new_point = ceres_pose_estimate * point.head<2>();
+      const Eigen::Array2i index =
+          map_limits.GetCellIndex(new_point.cast<float>());
+      image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 0, 255);
+    }
 
-  //     for (const Eigen::Vector3d& point : points) {
-  //       const Eigen::Vector2d new_point = ceres_pose_estimate *
-  //       point.head<2>(); const Eigen::Array2i index =
-  //           map_limits.GetCellIndex(new_point.cast<float>());
-  //       image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 0, 255);
-  //     }
-
-  //     cv::imwrite("/home/linjs/图片/global_match/match_" +
-  //                     std::to_string(count_++) + ".png",
-  //                 image);
-  //   }
+    cv::imwrite("/home/linjs/图片/global_match/match_" +
+                    std::to_string(count++) + ".png",
+                image);
+  }
 }
 
 void PoseGraph::ComputeGlobalConstraint(
@@ -323,7 +319,8 @@ void PoseGraph::GlobalOptimize() {
   // const auto t1 = std::chrono::steady_clock::now();
   // LOG(INFO)
   //     << "Global optimization takes "
-  //     << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()
+  //     << std::chrono::duration_cast<std::chrono::milliseconds>(t1 -
+  //     t0).count()
   //     << "ms";
 }
 

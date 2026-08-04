@@ -76,8 +76,8 @@ void Localization::GlobalLocalization(const sensor::LaserDataPtr& laser_data) {
   localization_status_ = LocalizationStatus::kRoaming;
   pose_graph_->Reset();
 
-  pose_graph_->AddGlobalMatchConstraint(laser_data->timestamp(),
-                                   ConvertPoint(laser_data->hitting_points()));
+  pose_graph_->AddGlobalMatchConstraint(
+      laser_data->timestamp(), ConvertPoint(laser_data->hitting_points()));
 
   local_map_builder_ = std::make_shared<LocalMapBuilder>();
   pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
@@ -107,24 +107,30 @@ void Localization::Track(const sensor::LaserDataPtr& laser_data) {
   //     transform::Project2D(pose_extrapolator_->cached_extrapolated_pose().pose),
   //     &local_pose_estimate, &local_pose_score, &is_keyframe);
 
-  local_map_builder_->AddLaserData(
-      laser_data,
-      transform::Project2D(pose_extrapolator_->cached_extrapolated_pose().pose),
-      &local_pose_estimate, &local_pose_score, &is_keyframe);
+  // local_map_builder_->AddLaserData(
+  //     laser_data,
+  //     transform::Project2D(pose_extrapolator_->cached_extrapolated_pose().pose),
+  //     &local_pose_estimate, &local_pose_score, &is_keyframe);
+
+  local_map_builder_->AddLaserData(laser_data, prev_local_pose_,
+                                   &local_pose_estimate, &local_pose_score,
+                                   &is_keyframe);
 
   prev_local_pose_ = local_pose_estimate;
   pose_extrapolator_->AddPose(laser_data->timestamp(),
                               transform::Embed3D(local_pose_estimate));
 
-  if (!is_keyframe) {
-    return;
-  }
+  LOG(INFO) << "local_pose_score = " << local_pose_score;
 
-  if (localization_status_ == LocalizationStatus::kSuccess) {
-    pose_graph_->AddTrackingConstraint(laser_data->timestamp(),
-                                    ConvertPoint(laser_data->hitting_points()),
-                                    local_pose_estimate, local_pose_score);
-  }
+  // if (!is_keyframe) {
+  //   return;
+  // }
+
+  // if (localization_status_ == LocalizationStatus::kSuccess) {
+  //   pose_graph_->AddTrackingConstraint(
+  //       laser_data->timestamp(), ConvertPoint(laser_data->hitting_points()),
+  //       local_pose_estimate, local_pose_score);
+  // }
 
   // if (localization_status_ == LocalizationStatus::kSuccess) {
   //   pose_graph_->AddTrackingConstraint(laser_data->timestamp(),
@@ -253,6 +259,14 @@ void Localization::EvaluateLocalizationStatus(
 }
 
 void Localization::AddLaserData(const sensor::LaserDataPtr& laser_data) {
+  if (local_map_builder_ == nullptr || pose_extrapolator_ == nullptr) {
+    local_map_builder_ = std::make_shared<LocalMapBuilder>();
+    pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
+  }
+
+  Track(laser_data);
+
+  return;
   if (localization_status_ == LocalizationStatus::kUnknown ||
       localization_status_ == LocalizationStatus::kFailed) {
     return;
@@ -291,6 +305,7 @@ void Localization::AddInitialPose(const Eigen::Matrix4d& initial_pose) {
 }
 
 void Localization::AddImuData(const sensor::ImuDataPtr& imu_data) {
+  return;
   if (pose_extrapolator_ != nullptr) {
     pose_extrapolator_->AddImuData(imu_data);
   }
@@ -298,12 +313,15 @@ void Localization::AddImuData(const sensor::ImuDataPtr& imu_data) {
 
 void Localization::AddOdometryData(
     const sensor::OdometryDataPtr& odometry_data) {
+  return;
   if (pose_extrapolator_ != nullptr) {
     pose_extrapolator_->AddOdometryData(odometry_data);
   }
 }
 
 const Eigen::Matrix4d Localization::GetLatestPose(const double timestamp) {
+  return ToMatrix4d(prev_local_pose_);
+
   if (pose_graph_ == nullptr || pose_extrapolator_ == nullptr) {
     return Eigen::Matrix4d::Identity();
   }

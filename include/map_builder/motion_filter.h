@@ -5,8 +5,8 @@
 //  All users are hereby notified that the materials in the form of digital   //
 //  information available from this software (content, designs, color         //
 //  schemes, graphic styles, images, logo, text, and videos) comes protected  //
-//  under International Copyright Laws. Therefore it should not be reproduced //
-//  in any form digital or offline without prior written permission of        //
+//  under International Copyright Laws. Therefore iter should not be reproduced
+//  // in any form digital or offline without prior written permission of //
 //  Solex Robot.                                                              //
 //                                                                            //
 //  Any unauthorized reprint or material usage (Solex Robot) either manually  //
@@ -22,53 +22,26 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#pragma once
-
-#include <common/base_type.h>
-#include <common/rigid_transform.h>
-
-#include <Eigen/Core>
-#include <Eigen/Geometry>
-#include <memory>
-#include <vector>
+#include <limits>
 
 #include "common/rigid_transform.h"
-#include "include/map_builder/active_map.h"
-#include "include/map_builder/motion_filter.h"
-#include "include/map_builder/icp_aligner.h"
-#include "include/map_builder/ndt_aligner.h"
-#include "include/scan_match/ceres_scan_matcher_2d.h"
-#include "include/scan_match/real_time_correlative_scan_matcher_2d.h"
 
 namespace solex_robot::navigation::localization_2d {
-class LocalMapBuilder {
+
+class MotionFilter {
  public:
-  LocalMapBuilder();
+  MotionFilter() = default;
 
-  void AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
-                     const transform::Rigid2d& initial_pose,
-                     transform::Rigid2d* final_pose, float* score,
-                     bool* is_keyframe);
-
-  void AddLaserData(const sensor::LaserDataPtr& laser_data,
-                    const transform::Rigid2d& initial_pose,
-                    transform::Rigid2d* pose_estimate, float* score,
-                    bool* is_keyframe);
-
-  const std::vector<std::shared_ptr<Submap>> GetLocalMap() const;
+  // If the accumulated motion (linear, rotational, or time) is above the
+  // threshold, returns false. Otherwise the relative motion is accumulated and
+  // true is returned.
+  bool IsSimilar(double time, const transform::Rigid3d& pose);
 
  private:
-  bool IsKeyframe(const transform::Rigid2d& current_pose);
-
- private:
-  std::unique_ptr<MotionFilter> motion_filter_;
-  std::unique_ptr<NDTAligner> ndt_aligner_;
-  std::unique_ptr<ICPAligner> icp_aligner_;
-  std::unique_ptr<ActiveSubmap> active_submaps_;
-  std::unique_ptr<CeresScanMatcher2D> ceres_scan_matcher_;
-  std::unique_ptr<RealTimeCorrelativeScanMatcher2D>
-      real_time_correlative_scan_matcher_;
-  std::vector<transform::Rigid2d> estimated_poses_;
+  int num_total_ = 0;
+  int num_different_ = 0;
+  double last_time_ = 0.0;
+  transform::Rigid3d last_pose_;
 };
 
 }  // namespace solex_robot::navigation::localization_2d

@@ -18,7 +18,7 @@ def generate_launch_description():
     xacro_file = os.path.join(pkg_path, xacro_file_path)
     robot_description = Command(['xacro ', xacro_file])
 
-    map_file = "/home/linjs/solex_ws/src/maps/cartographer.yaml"
+    map_file = "/home/linjs/Desktop/data/maps/corridor.yaml"
 
     return LaunchDescription([
         # 1. 启动 robot_state_publisher 节点（发布机器人 TF 和状态）
