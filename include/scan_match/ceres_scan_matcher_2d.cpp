@@ -106,7 +106,7 @@ void CeresScanMatcher2D::Match(const transform::Rigid2d& initial_pose_estimate,
 
     *score = 0.0;
     for (const Eigen::Vector3d& point : point_cloud) {
-      const Eigen::Vector2d world_point = (*pose_estimate) * point.head(2);
+      const Eigen::Vector2d world_point = (*pose_estimate) * point.head<2>();
 
       const Eigen::Array2i proposed_xy_index =
           map_limits.GetCellIndex(world_point.cast<float>());

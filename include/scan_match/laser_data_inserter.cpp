@@ -91,15 +91,15 @@ void LaserDataInserter::GrowAsNeeded(
     const sensor::LaserDataPtr& laser_data,
     ProbabilityGrid* const probability_grid) const {
   Eigen::AlignedBox2f bounding_box(
-      laser_data->pose().translation().cast<float>().head(2));
+      laser_data->pose().translation().cast<float>().head<2>());
   // Padding around bounding box to avoid numerical issues at cell boundaries.
   for (const auto& hitting_point : laser_data->hitting_points()) {
     bounding_box.extend(
-        (laser_data->pose() * hitting_point->position).cast<float>().head(2));
+        (laser_data->pose() * hitting_point->position).cast<float>().head<2>());
   }
   for (const auto& missing_point : laser_data->missing_points()) {
     bounding_box.extend(
-        (laser_data->pose() * missing_point->position).cast<float>().head(2));
+        (laser_data->pose() * missing_point->position).cast<float>().head<2>());
   }
   probability_grid->GrowLimits(bounding_box.min() -
                                kPadding * Eigen::Vector2f::Ones());
@@ -248,13 +248,13 @@ void LaserDataInserter::CastRays(const sensor::LaserDataPtr& laser_data,
       CellLimits(limits.cell_limits().num_x_cells * kSubpixelScale,
                  limits.cell_limits().num_y_cells * kSubpixelScale));
   const Eigen::Array2i begin = superscaled_limits.GetCellIndex(
-      laser_data->pose().translation().cast<float>().head(2));
+      laser_data->pose().translation().cast<float>().head<2>());
   // Compute and add the end points.
   std::vector<Eigen::Array2i> ends;
   ends.reserve(laser_data->hitting_points().size());
   for (const auto& hitting_point : laser_data->hitting_points()) {
     ends.push_back(superscaled_limits.GetCellIndex(
-        (laser_data->pose() * hitting_point->position).cast<float>().head(2)));
+        (laser_data->pose() * hitting_point->position).cast<float>().head<2>()));
     probability_grid->ApplyLookupTable(ends.back() / kSubpixelScale,
                                        hitting_table);
   }
@@ -275,7 +275,7 @@ void LaserDataInserter::CastRays(const sensor::LaserDataPtr& laser_data,
   // Finally, compute and add empty rays based on misses in the range data.
   for (const auto& missing_point : laser_data->missing_points()) {
     const Eigen::Array2i cell_index = superscaled_limits.GetCellIndex(
-        (laser_data->pose() * missing_point->position).cast<float>().head(2));
+        (laser_data->pose() * missing_point->position).cast<float>().head<2>());
     std::vector<Eigen::Array2i> ray =
         RayToPixelMask(begin, cell_index, kSubpixelScale);
     for (const Eigen::Array2i& cell_index : ray) {

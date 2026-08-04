@@ -103,7 +103,7 @@
 //     source_points.reserve(point_cloud.size());
 //     target_points.reserve(point_cloud.size());
 //     for (const Eigen::Vector3d& point : point_cloud) {
-//       const Eigen::Vector2d query_point = (*pose_estimate) * point.head(2);
+//       const Eigen::Vector2d query_point = (*pose_estimate) * point.head<2>();
 //       std::vector<size_t> indices(1);
 //       std::vector<double> sqr_distances(1,
 //       std::numeric_limits<double>::max());
@@ -111,7 +111,7 @@
 //                           sqr_distances.data());
 //       const double distance = std::sqrt(sqr_distances[0]);
 //       if (distance < kICPMaxInlierDistance) {
-//         source_points.emplace_back(point.head(2));
+//         source_points.emplace_back(point.head<2>());
 //         target_points.emplace_back(search_tree_->get_data(indices[0]));
 //       }
 //     }
@@ -147,7 +147,7 @@
 //   std::vector<Eigen::Vector2d> points_2d;
 //   for (const auto& point_cloud : point_cloud_list_) {
 //     for (const Eigen::Vector3d& point : point_cloud) {
-//       points_2d.emplace_back(point.head(2));
+//       points_2d.emplace_back(point.head<2>());
 //     }
 //   }
 
@@ -339,7 +339,7 @@ void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
     target_points.reserve(point_cloud.size());
     // 核心修改：利用当前的 pose_estimate 将雷达点投影到全局坐标系下，再找最近邻
     for (const Eigen::Vector3d& point : point_cloud) {
-      const Eigen::Vector2d query_point = current_pose * point.head(2);
+      const Eigen::Vector2d query_point = current_pose * point.head<2>();
       std::vector<size_t> indices(1);
       std::vector<double> sqr_distances(1, std::numeric_limits<double>::max());
 
@@ -396,7 +396,7 @@ void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
   //   }
 
   //   for (const Eigen::Vector3d& point : point_cloud) {
-  //     const Eigen::Vector2d query_point = initial_pose * point.head(2);
+  //     const Eigen::Vector2d query_point = initial_pose * point.head<2>();
   //     max_x = std::max(query_point.x(), max_x);
   //     max_y = std::max(query_point.y(), max_y);
   //     min_x = std::min(query_point.x(), min_x);
@@ -404,7 +404,7 @@ void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
   //   }
 
   //   for (const Eigen::Vector3d& point : point_cloud) {
-  //     const Eigen::Vector2d query_point = (*pose_estimate) * point.head(2);
+  //     const Eigen::Vector2d query_point = (*pose_estimate) * point.head<2>();
   //     max_x = std::max(query_point.x(), max_x);
   //     max_y = std::max(query_point.y(), max_y);
   //     min_x = std::min(query_point.x(), min_x);
@@ -430,7 +430,7 @@ void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
   //   }
 
   //   for (const Eigen::Vector3d& point : point_cloud) {
-  //     const Eigen::Vector2d query_point = initial_pose * point.head(2);
+  //     const Eigen::Vector2d query_point = initial_pose * point.head<2>();
   //     int x_index =
   //         std::clamp(static_cast<int>((query_point.x() - min_x) /
   //         resolution),
@@ -443,7 +443,7 @@ void ICPAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
   //   }
 
   //   for (const Eigen::Vector3d& point : point_cloud) {
-  //     const Eigen::Vector2d query_point = (*pose_estimate) * point.head(2);
+  //     const Eigen::Vector2d query_point = (*pose_estimate) * point.head<2>();
   //     int x_index =
   //         std::clamp(static_cast<int>((query_point.x() - min_x) /
   //         resolution),
@@ -487,7 +487,7 @@ void ICPAligner::AddPointCloud(
         LOG(INFO) << "point = " << point.transpose();
       }
 
-      points_2d.emplace_back(point.head(2));
+      points_2d.emplace_back(point.head<2>());
     }
   }
 

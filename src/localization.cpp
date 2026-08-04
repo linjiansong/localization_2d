@@ -42,26 +42,10 @@
 
 namespace solex_robot::navigation::localization_2d {
 namespace {
-constexpr double kMillisecondToSecond = 1.e-3;
 constexpr double kRadianToDegree = 180.0 / M_PI;
 constexpr double kDegreeToRadian = M_PI / 180.0;
-constexpr double kKeyframeMinDistance = 0.2;  // meter
-constexpr double kKeyframeMinAngle = 5.0;     // degree
-constexpr double kICPMinDistance = 1e-4;      // meter
-constexpr double kICPMinAngle = 0.01;         // degree
-
-constexpr int kMaxKeyframeBufferLength = 1;
-constexpr int kOptimizeKeyframeInterval = 5;
-
-constexpr int kMaxIterationsNum = 50;
-constexpr int kThreadNum = 8;
-
-constexpr std::array<double, 6> kInterFrameWeight = {1.e3, 1.e3, 1.e3,
-                                                     1.e2, 1.e2, 1.e2};
-constexpr std::array<double, 6> kFixedPoseWeiht = {1.e3, 1.e3, 1.e3,
-                                                   1.e2, 1.e2, 1.e2};
-
-constexpr int kFixedPoseHuberLoss = 20.0;
+constexpr double kMaxRoamingDistance = 100.0;  // meter
+constexpr double kMaxRoamingAngle = 360.0;     // Degree
 
 Eigen::Matrix4d ToMatrix4d(const transform::Rigid2d& rigid_pose) {
   Eigen::Matrix4d eigen_pose = Eigen::Matrix4d::Identity();
@@ -71,17 +55,6 @@ Eigen::Matrix4d ToMatrix4d(const transform::Rigid2d& rigid_pose) {
   eigen_pose(0, 3) = rigid_pose.translation().x();
   eigen_pose(1, 3) = rigid_pose.translation().y();
   return eigen_pose;
-}
-
-transform::Rigid2d ToRigid2d(const Eigen::Matrix4d& eigen_pose) {
-  const Eigen::Vector2d translation(eigen_pose(0, 3), eigen_pose(1, 3));
-  const double rotation_angle = std::atan2(eigen_pose(1, 0), eigen_pose(0, 0));
-  return transform::Rigid2d(translation, rotation_angle);
-}
-
-Eigen::Vector3d TransformPoint(const Eigen::Matrix4d& transform,
-                               const Eigen::Vector3d& point) {
-  return transform.block<3, 3>(0, 0) * point + transform.block<3, 1>(0, 3);
 }
 
 std::vector<Eigen::Vector3d> ConvertPoint(
@@ -100,6 +73,7 @@ Localization::~Localization() { pose_graph_->Finish(); }
 
 void Localization::GlobalLocalization(const sensor::LaserDataPtr& laser_data) {
   CHECK_NOTNULL(pose_graph_);
+  localization_status_ = LocalizationStatus::kRoaming;
   pose_graph_->Reset();
 
   pose_graph_->AddGlobalConstraint(laser_data->timestamp(),
@@ -109,8 +83,6 @@ void Localization::GlobalLocalization(const sensor::LaserDataPtr& laser_data) {
   pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
   pose_extrapolator_->AddPose(laser_data->timestamp(),
                               transform::Rigid3d::Identity());
-
-  localization_status_ = LocalizationStatus::kInitialization;  // reset
 }
 
 void Localization::Relocalization(const sensor::LaserDataPtr& laser_data) {
@@ -121,7 +93,6 @@ void Localization::Relocalization(const sensor::LaserDataPtr& laser_data) {
 void Localization::Track(const sensor::LaserDataPtr& laser_data) {
   CHECK_NOTNULL(pose_extrapolator_);
 
-  const auto t0 = std::chrono::steady_clock::now();
   transform::Rigid2d local_pose_estimate;
   float local_pose_score = 0.0;
   bool is_keyframe = false;
@@ -142,32 +113,28 @@ void Localization::Track(const sensor::LaserDataPtr& laser_data) {
       &local_pose_estimate, &local_pose_score, &is_keyframe);
 
   prev_local_pose_ = local_pose_estimate;
-  pose_extrapolator_->AddPose(
-      laser_data->timestamp(),
-      transform::Rigid3d(
-          Eigen::Vector3d(local_pose_estimate.translation().x(),
-                          local_pose_estimate.translation().y(), 0.),
-          Eigen::AngleAxisd(local_pose_estimate.rotation().angle(),
-                            Eigen::Vector3d::UnitZ())));
+  pose_extrapolator_->AddPose(laser_data->timestamp(),
+                              transform::Embed3D(local_pose_estimate));
 
-  // LOG(INFO) << "local_pose_estimate = ["
-  //           << local_pose_estimate.translation().x() << ", "
-  //           << local_pose_estimate.translation().x() << ", "
-  //           << local_pose_estimate.rotation().angle()
-  //           << "], local_pose_score = " << local_pose_score;
+  if (!is_keyframe) {
+    return;
+  }
 
-  // if (!is_keyframe) {
+  if (localization_status_ == LocalizationStatus::kSuccess) {
+    pose_graph_->AddLocalConstraint(laser_data->timestamp(),
+                                    ConvertPoint(laser_data->hitting_points()),
+                                    local_pose_estimate, local_pose_score);
+  }
+
+  // if (localization_status_ == LocalizationStatus::kSuccess) {
+  //   pose_graph_->AddLocalConstraint(laser_data->timestamp(),
+  //                                   ConvertPoint(laser_data->hitting_points()),
+  //                                   local_pose_estimate, local_pose_score);
+  // } else if (localization_status_ == LocalizationStatus::kRoaming) {
   //   pose_graph_->AddLocalConstraint(laser_data->timestamp(),
   //                                   ConvertPoint(laser_data->hitting_points()),
   //                                   local_pose_estimate, local_pose_score);
   // }
-
-  // const auto t1 = std::chrono::steady_clock::now();
-  // LOG(INFO)
-  //     << "Track takes "
-  //     << std::chrono::duration_cast<std::chrono::milliseconds>(t1 -
-  //     t0).count()
-  //     << "ms";
 }
 
 void Localization::DistordPointCloud(const sensor::LaserDataPtr& laser_data) {
@@ -203,7 +170,7 @@ float Localization::CalculateMatchScore(
   for (const sensor::TimedPointPtr& timed_point :
        laser_data->hitting_points()) {
     const Eigen::Vector2d world_point =
-        pose_estimate * timed_point->position.head(2);
+        pose_estimate * timed_point->position.head<2>();
 
     const Eigen::Array2i proposed_xy_index =
         map_limits.GetCellIndex(world_point.cast<float>());
@@ -242,7 +209,7 @@ float Localization::CalculateMatchScore(
   //   for (const sensor::TimedPointPtr& timed_point : laser_data.points())
   //   {
   //     const Eigen::Vector2d world_point =
-  //         pose_estimate2 * timed_point->position.head(2);
+  //         pose_estimate2 * timed_point->position.head<2>();
 
   //     const Eigen::Array2i proposed_xy_index =
   //         map_limits.GetCellIndex(world_point.cast<float>());
@@ -261,40 +228,48 @@ float Localization::CalculateMatchScore(
   return score;
 }
 
-void Localization::AddLaserData(const sensor::LaserDataPtr& laser_data) {
-  switch (localization_status_) {
-    case LocalizationStatus::kInitialization:
-    case LocalizationStatus::kSuccess: {
-      Track(laser_data);
-      break;
-    }
-
-    case LocalizationStatus::kGlobalLocalization: {
-      GlobalLocalization(laser_data);
-      break;
-    }
-
-    case LocalizationStatus::kRelocalization: {
-      Relocalization(laser_data);
-      break;
-    }
-
-    default:
-      break;
-  }
-
-  // check localization status
+void Localization::EvaluateLocalizationStatus(
+    const sensor::LaserDataPtr& laser_data) {
   const float score = CalculateMatchScore(laser_data);
-  if (localization_status_ == LocalizationStatus::kInitialization &&
-      score > 0.3) {
-    localization_status_ = LocalizationStatus::kSuccess;
-    LOG(INFO) << "Localize successed, score = " << score;
+  if (score > 0.3) {
+    if (localization_status_ == LocalizationStatus::kSuccess) {
+      return;
+    } else {
+      localization_status_ = LocalizationStatus::kSuccess;
+      roaming_distance_ = 0.0;
+      roaming_angle_ = 0.0;
+    }
+  } else {
+    if (localization_status_ == LocalizationStatus::kSuccess) {
+      localization_status_ = LocalizationStatus::kRoaming;
+    } else if (localization_status_ == LocalizationStatus::kRoaming) {
+      if (roaming_distance_ > kMaxRoamingDistance ||
+          roaming_angle_ > kMaxRoamingAngle) {
+        localization_status_ = LocalizationStatus::kFailed;
+        LOG(INFO) << "Localize failed!";
+      }
+    }
+  }
+}
+
+void Localization::AddLaserData(const sensor::LaserDataPtr& laser_data) {
+  if (localization_status_ == LocalizationStatus::kUnknown ||
+      localization_status_ == LocalizationStatus::kFailed) {
+    return;
+  } else if (localization_status_ == LocalizationStatus::kInitialization) {
+    GlobalLocalization(laser_data);
+  } else {
+    // const auto t0 = std::chrono::steady_clock::now();
+    Track(laser_data);
+    // const auto t1 = std::chrono::steady_clock::now();
+    // LOG(INFO)
+    //     << "Track takes "
+    //     << std::chrono::duration_cast<std::chrono::milliseconds>(t1 -
+    //     t0).count()
+    //     << "ms";
   }
 
-  if (localization_status_ == LocalizationStatus::kSuccess && score < 0.3) {
-    // localization_status_ = LocalizationStatus::kFailed;
-    LOG(INFO) << "Localize failed, score = " << score;
-  }
+  EvaluateLocalizationStatus(laser_data);
 }
 
 void Localization::AddGridMap(
@@ -312,7 +287,7 @@ void Localization::AddGridMap(
 
 void Localization::AddInitialPose(const Eigen::Matrix4d& initial_pose) {
   // initial_pose_ = initial_pose; // Todo
-  localization_status_ = LocalizationStatus::kGlobalLocalization;
+  localization_status_ = LocalizationStatus::kInitialization;
 }
 
 void Localization::AddImuData(const sensor::ImuDataPtr& imu_data) {

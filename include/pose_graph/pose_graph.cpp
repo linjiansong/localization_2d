@@ -132,7 +132,7 @@ void PoseGraph::ComputeLocalConstraint(
 
   //     for (const Eigen::Vector3d& point : points) {
   //       const Eigen::Vector2d new_point = ceres_pose_estimate *
-  //       point.head(2); const Eigen::Array2i index =
+  //       point.head<2>(); const Eigen::Array2i index =
   //           map_limits.GetCellIndex(new_point.cast<float>());
   //       image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 0, 255);
   //     }

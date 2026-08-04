@@ -73,8 +73,6 @@ class LocalizationNode : public rclcpp::Node {
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
   // publisher
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
-      point_cloud_publisher_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_publisher_;
   rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr
       local_map_publisher_;

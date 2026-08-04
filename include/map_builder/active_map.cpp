@@ -30,7 +30,7 @@ namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr int kInitialSubmapSize = 100;
 constexpr int kNumberLaserData = 50;
-constexpr float kResolution = 0.05;
+constexpr float kResolution = 0.025;
 }  // namespace
 
 std::unique_ptr<ProbabilityGrid> ActiveSubmap::CreateGrid(
@@ -56,13 +56,13 @@ void ActiveSubmap::AddSubmap(const Eigen::Vector2f& origin) {
 void ActiveSubmap::InsertLaserData(const sensor::LaserDataPtr& laser_data) {
   if (submaps_.empty() ||
       submaps_.back()->num_laser_data() == kNumberLaserData) {
-    AddSubmap(laser_data->pose().translation().cast<float>().head(2));
+    AddSubmap(laser_data->pose().translation().cast<float>().head<2>());
   }
 
   for (auto& submap : submaps_) {
     submap->InsertLaserData(laser_data, laser_data_inserter_.get());
   }
-  
+
   if (submaps_.front()->num_laser_data() == 2 * kNumberLaserData) {
     submaps_.front()->Finish();
   }

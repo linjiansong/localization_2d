@@ -89,7 +89,7 @@ std::vector<DiscreteScan2D> FastCorrelativeScanMatcher2D::DiscretizeScans(
     discrete_scans.back().reserve(scan.size());
     for (const Eigen::Vector3d& point : scan) {
       const Eigen::Vector2f translated_point =
-          (Eigen::Affine2f(initial_translation) * point.cast<float>()).head(2);
+          Eigen::Affine2f(initial_translation) * point.cast<float>().head<2>();
       discrete_scans.back().push_back(
           map_limits.GetCellIndex(translated_point));
     }
@@ -208,7 +208,7 @@ bool FastCorrelativeScanMatcher2D::MatchWithSearchParameters(
       float score = 0.0;
       for (const Eigen::Vector3d point : rotated_point_cloud) {
         const Eigen::Array2i index =
-            limits_.GetCellIndex(point.cast<float>().head(2));
+            limits_.GetCellIndex(point.cast<float>().head<2>());
         score += precomputation_grid.GetValue(index);
       }
 

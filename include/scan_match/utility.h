@@ -161,7 +161,7 @@ struct SearchParameters {
     // We set this value to something on the order of resolution to make sure
     // that the std::acos() below is defined. float max_scan_range = 3.f *
     // resolution; for (const Eigen::Vector3f& point : point_cloud) {
-    //   const float range = point.position.head(2).norm();
+    //   const float range = point.position.head<2>().norm();
     //   max_scan_range = std::max(range, max_scan_range);
     // }
 
@@ -169,7 +169,7 @@ struct SearchParameters {
     //     kSafetyMargin * std::acos(1. - common::Pow2(resolution) /
     //                                       (2. *
     //                                       common::Pow2(max_scan_range)));
-    angular_perturbation_step_size = 0.5 * M_PI / 180.;
+    angular_perturbation_step_size = 0.25 * M_PI / 180.;
     num_angular_perturbations =
         std::ceil(angular_search_window / angular_perturbation_step_size);
 

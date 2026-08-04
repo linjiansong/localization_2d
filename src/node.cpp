@@ -91,11 +91,8 @@ LocalizationNode::LocalizationNode()
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
-  point_cloud_publisher_ =
-      this->create_publisher<sensor_msgs::msg::PointCloud2>("points_raw", 50);
-
   pose_publisher_ =
-      this->create_publisher<geometry_msgs::msg::PoseStamped>("robot_pose", 50);
+      this->create_publisher<geometry_msgs::msg::PoseStamped>("robot_pose", 20);
 
   local_map_publisher_ =
       this->create_publisher<nav_msgs::msg::OccupancyGrid>("local_map", 1);
@@ -103,7 +100,7 @@ LocalizationNode::LocalizationNode()
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
   // 创建定时器，50Hz 发布
-  timer_ = this->create_wall_timer(std::chrono::milliseconds(20), [this]() {
+  timer_ = this->create_wall_timer(std::chrono::milliseconds(50), [this]() {
     this->PublishTransform();
     this->PublishRobotPose();
   });
@@ -118,6 +115,7 @@ LocalizationNode::LocalizationNode()
 void LocalizationNode::HandleScanMessage(
     const sensor_msgs::msg::LaserScan::SharedPtr msg) {
   CHECK_NOTNULL(msg);
+
   std::unique_lock<std::mutex> lock(mutex_);
 
   static Eigen::Isometry3d laser_to_base_transform =
@@ -200,7 +198,6 @@ void LocalizationNode::HandleOdometryMessage(
 void LocalizationNode::HandleImuMessage(
     const sensor_msgs::msg::Imu::SharedPtr msg) {
   CHECK_NOTNULL(msg);
-
   std::unique_lock<std::mutex> lock(mutex_);
 
   // LOG(INFO) << "delta time = " << this->now().seconds() -

@@ -71,6 +71,8 @@ class Localization {
 
   float CalculateMatchScore(const sensor::LaserDataPtr& laser_data);
 
+  void EvaluateLocalizationStatus(const sensor::LaserDataPtr& laser_data);
+
  private:
   std::shared_ptr<ProbabilityGrid> probability_grid_;
   std::shared_ptr<LocalMapBuilder> local_map_builder_;
@@ -79,5 +81,7 @@ class Localization {
 
   transform::Rigid2d prev_local_pose_;
   LocalizationStatus localization_status_ = LocalizationStatus::kUnknown;
+  double roaming_distance_ = 0.0;
+  double roaming_angle_ = 0.0;
 };
 }  // namespace solex_robot::navigation::localization_2d

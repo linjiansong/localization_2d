@@ -35,8 +35,8 @@ enum class LocalizationStatus {
   kInitialization = 1,
   kFailed = 2,
   kSuccess = 3,
-  kRelocalization = 4,
-  kGlobalLocalization = 5
+  kRoaming = 4,
+  k
 };
 
 struct State {

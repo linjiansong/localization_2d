@@ -58,9 +58,6 @@ class LocalMapBuilder {
 
  private:
   bool IsKeyframe(const transform::Rigid2d& current_pose);
-  void MatchLocalMap(const transform::Rigid2d& pose_prediction,
-                     const std::vector<Eigen::Vector3d>& point_cloud,
-                     transform::Rigid2d* pose_estimate, float* score);
 
  private:
   std::unique_ptr<NDTAligner> ndt_aligner_;
@@ -70,7 +67,6 @@ class LocalMapBuilder {
   std::unique_ptr<RealTimeCorrelativeScanMatcher2D>
       real_time_correlative_scan_matcher_;
   transform::Rigid2d last_keyframe_pose_;
-
   std::vector<transform::Rigid2d> estimated_poses_;
 };
 

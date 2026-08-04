@@ -109,7 +109,7 @@ std::vector<DiscreteScan2D> RealTimeCorrelativeScanMatcher2D::DiscretizeScans(
     discrete_scans.back().reserve(scan.size());
     for (const Eigen::Vector3d& point : scan) {
       const Eigen::Vector2f translated_point =
-          (Eigen::Affine2f(initial_translation) * point.cast<float>()).head(2);
+          Eigen::Affine2f(initial_translation) * point.cast<float>().head<2>();
       discrete_scans.back().push_back(
           map_limits.GetCellIndex(translated_point));
     }

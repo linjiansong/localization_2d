@@ -96,12 +96,12 @@ void NDTAligner::AddPointCloud(const std::vector<Eigen::Vector3d>& points) {
   std::set<GridIndex> active_voxels;
   for (const Eigen::Vector3d& point : points) {
     const GridIndex grid_index =
-        ConvertToGridIndex(point.head(2) * options_.inverse_voxel_size);
+        ConvertToGridIndex(point.head<2>() * options_.inverse_voxel_size);
     auto voxel_data_iter = voxel_data_map_.find(grid_index);
     if (voxel_data_iter == voxel_data_map_.end()) {
       // 栅格不存在：在链表头部插入新体素，并带上当前第一个点
       VoxelDataPtr voxel_data = std::make_shared<VoxelData>();
-      voxel_data->points.emplace_back(point.head(2));
+      voxel_data->points.emplace_back(point.head<2>());
       voxel_data->grid_index = grid_index;
       voxel_data_list_.push_front(voxel_data);
       voxel_data_map_.insert(std::make_pair(grid_index, voxel_data));
@@ -114,7 +114,7 @@ void NDTAligner::AddPointCloud(const std::vector<Eigen::Vector3d>& points) {
       }
     } else {
       // 栅格存在：添加点到该体素中
-      voxel_data_iter->second->points.emplace_back(point.head(2));
+      voxel_data_iter->second->points.emplace_back(point.head<2>());
 
       // 将当前体素节点移动到链表最前方(表示最近刚被使用过)
       voxel_data_list_.remove(voxel_data_iter->second);
@@ -243,7 +243,7 @@ bool NDTAligner::Align(const std::vector<Eigen::Vector3d>& point_cloud,
     std::for_each(
         std::execution::par_unseq, indices.begin(), indices.end(),
         [&](int idx) {
-          const Eigen::Vector2d source_point = point_cloud[idx].head(2);
+          const Eigen::Vector2d source_point = point_cloud[idx].head<2>();
           const Eigen::Vector2d transformed_point =
               (*pose_estimate) * source_point;
 
