@@ -254,9 +254,14 @@ void LaserDataInserter::CastRays(const sensor::LaserDataPtr& laser_data,
   ends.reserve(laser_data->hitting_points().size());
   for (const auto& hitting_point : laser_data->hitting_points()) {
     ends.push_back(superscaled_limits.GetCellIndex(
-        (laser_data->pose() * hitting_point->position).cast<float>().head<2>()));
+        (laser_data->pose() * hitting_point->position)
+            .cast<float>()
+            .head<2>()));
     probability_grid->ApplyLookupTable(ends.back() / kSubpixelScale,
                                        hitting_table);
+
+    LOG(INFO) << "hitting_cell = " << ends.back().x() / kSubpixelScale << ", "
+              << ends.back().y() / kSubpixelScale;
   }
 
   if (!kInsertFreeSpace) {

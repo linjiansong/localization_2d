@@ -333,7 +333,7 @@ void PoseGraph::Init() {
   RealTimeCorrelativeScanMatcherOptions2D real_time_options;
   real_time_options.linear_search_window = 0.2;
   real_time_options.angular_search_window = 2.5 * kDegreeToRadian;
-  real_time_options.translation_delta_cost_weight = 0.1;
+  real_time_options.translation_delta_cost_weight = 10;
   real_time_options.rotation_delta_cost_weight = 0.1;
   real_time_correlative_scan_matcher_ =
       std::make_shared<RealTimeCorrelativeScanMatcher2D>(real_time_options);

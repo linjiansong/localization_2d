@@ -35,18 +35,18 @@
 namespace solex_robot::navigation::localization_2d {
 namespace {
 // constexpr float kMinProbability = 0.1f;
-constexpr float kMinProbability = 0.0f;
+constexpr float kMinProbability = 0.1f;
 constexpr float kMaxProbability = 1.f - kMinProbability;
 constexpr float kMinCorrespondenceCost = 1.f - kMaxProbability;
 constexpr float kMaxCorrespondenceCost = 1.f - kMinProbability;
-constexpr float kUnknownCorrespondenceValue = 0.5;
-
-constexpr int kValueCount = 32768;
-constexpr int kUnknownProbabilityValue = 0;
+constexpr uint16_t kUnknownCorrespondenceValue = 0;
+constexpr uint16_t kUnknownProbabilityValue = 0;
+constexpr uint16_t kValueCount = 32768;
 
 constexpr int kRepetitionCount = 2;
 constexpr double kSafetyMargin = 1. - 1e-3;
-// 小于kUpdateMarker的值：代表正常的Correspondence Cost。这个数值可以直接作为查找表（table）的下标去查询更新后的代价。
+// 小于kUpdateMarker的值：代表正常的Correspondence
+// Cost。这个数值可以直接作为查找表（table）的下标去查询更新后的代价。
 // 大于等于kUpdateMarker的值：代表“本帧已被更新过”的标记
 constexpr uint16_t kUpdateMarker = 1u << 15;
 }  // namespace

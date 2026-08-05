@@ -34,7 +34,8 @@ namespace solex_robot::navigation::localization_2d {
 
 ImuTracker::ImuTracker(const double imu_gravity_time_constant,
                        const double timestamp)
-    : imu_gravity_time_constant_(imu_gravity_time_constant), timestamp_(timestamp) {}
+    : imu_gravity_time_constant_(imu_gravity_time_constant),
+      timestamp_(timestamp) {}
 
 void ImuTracker::Advance(const double timestamp) {
   CHECK_LE(timestamp_, timestamp);

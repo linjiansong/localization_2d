@@ -34,9 +34,10 @@
 
 #include "common/rigid_transform.h"
 #include "include/map_builder/active_map.h"
-#include "include/map_builder/motion_filter.h"
 #include "include/map_builder/icp_aligner.h"
+#include "include/map_builder/motion_filter.h"
 #include "include/map_builder/ndt_aligner.h"
+#include "include/pose_estimator/pose_extrapolator.h"
 #include "include/scan_match/ceres_scan_matcher_2d.h"
 #include "include/scan_match/real_time_correlative_scan_matcher_2d.h"
 
@@ -51,7 +52,6 @@ class LocalMapBuilder {
                      bool* is_keyframe);
 
   void AddLaserData(const sensor::LaserDataPtr& laser_data,
-                    const transform::Rigid2d& initial_pose,
                     transform::Rigid2d* pose_estimate, float* score,
                     bool* is_keyframe);
 
@@ -62,6 +62,7 @@ class LocalMapBuilder {
 
  private:
   std::unique_ptr<MotionFilter> motion_filter_;
+  std::unique_ptr<PoseExtrapolator> pose_extrapolator_;
   std::unique_ptr<NDTAligner> ndt_aligner_;
   std::unique_ptr<ICPAligner> icp_aligner_;
   std::unique_ptr<ActiveSubmap> active_submaps_;

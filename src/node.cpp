@@ -147,7 +147,11 @@ void LocalizationNode::HandleScanMessage(
       std::make_shared<sensor::LaserData>(start_time);
   for (size_t index = 0; index < msg->ranges.size(); ++index) {
     const float range = msg->ranges[index];
-    if (range < msg->range_min) {
+    // if (range < msg->range_min) {
+    //   continue;
+    // }
+
+    if (range < 0.3) {
       continue;
     }
 
@@ -165,7 +169,8 @@ void LocalizationNode::HandleScanMessage(
     timed_point->timestamp = start_time + time_offset;
 
     // 过滤超出物理量程的点
-    if (range > msg->range_max) {
+    // if (range > msg->range_max) {
+    if (range > 8.0) {
       laser_data->mutable_missing_points()->emplace_back(timed_point);
     } else {
       laser_data->mutable_hitting_points()->emplace_back(timed_point);

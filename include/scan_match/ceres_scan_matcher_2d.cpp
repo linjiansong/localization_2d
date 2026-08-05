@@ -35,7 +35,7 @@
 namespace solex_robot::navigation::localization_2d {
 
 namespace {
-constexpr double kOccupiedSpaceWeight = 10.0;
+constexpr double kOccupiedSpaceWeight = 1.0;
 constexpr double kTranslationWeight = 10.0;
 constexpr double kRotationWeight = 40.0;
 }  // namespace

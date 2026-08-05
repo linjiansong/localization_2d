@@ -43,63 +43,47 @@ struct TimedPose {
 class PoseExtrapolator {
  public:
   PoseExtrapolator() = default;
-
   PoseExtrapolator(const PoseExtrapolator&) = delete;
   PoseExtrapolator& operator=(const PoseExtrapolator&) = delete;
 
   static std::unique_ptr<PoseExtrapolator> InitializeWithImu(
-      double pose_queue_duration, double imu_gravity_time_constant,
-      const sensor::ImuDataPtr& imu_data);
+      const sensor::ImuData& imu_data);
 
-  // Returns the time of the last added pose or Time::min() if no pose was added
-  // yet.
+  // Returns the timestamp of the last added pose or Time::min() if no pose was
+  // added yet.
   double GetLastPoseTime() const;
   double GetLastExtrapolatedTime() const;
 
-  void AddPose(double time, const transform::Rigid3d& pose);
-  void AddImuData(const sensor::ImuDataPtr& imu_data);
-  void AddOdometryData(const sensor::OdometryDataPtr& odometry_data);
-  transform::Rigid3d ExtrapolatePose(double time);
-
-  // ExtrapolationResult ExtrapolatePosesWithGravity(
-  //     const std::vector<double>& times);
+  void AddPose(double timestamp, const transform::Rigid3d& pose);
+  void AddImuData(const sensor::ImuData& imu_data);
+  void AddOdometryData(const sensor::OdometryData& odometry_data);
+  transform::Rigid3d ExtrapolatePose(double timestamp);
 
   // Returns the current gravity alignment estimate as a rotation from
   // the tracking frame into a gravity aligned frame.
-  Eigen::Quaterniond EstimateGravityOrientation(double time);
-
-  const transform::Rigid3d& latest_pose() {
-    return cached_extrapolated_pose_.pose;
-  }
-
-  const TimedPose& cached_extrapolated_pose() {
-    return cached_extrapolated_pose_;
-  }
+  Eigen::Quaterniond EstimateGravityOrientation(double timestamp);
 
  private:
   void UpdateVelocitiesFromPoses();
   void TrimImuData();
   void TrimOdometryData();
-  void AdvanceImuTracker(double time, ImuTracker* imu_tracker) const;
-  Eigen::Quaterniond ExtrapolateRotation(double time,
+  void AdvanceImuTracker(double timestamp, ImuTracker* imu_tracker) const;
+  Eigen::Quaterniond ExtrapolateRotation(double timestamp,
                                          ImuTracker* imu_tracker) const;
-  Eigen::Vector3d ExtrapolateTranslation(double time);
+  Eigen::Vector3d ExtrapolateTranslation(double timestamp);
 
  private:
-  const double pose_queue_duration_ = 1.e-3;
-  const double gravity_time_constant_ = 1.0;
-
   std::deque<TimedPose> timed_pose_queue_;
   Eigen::Vector3d linear_velocity_from_poses_ = Eigen::Vector3d::Zero();
   Eigen::Vector3d angular_velocity_from_poses_ = Eigen::Vector3d::Zero();
 
-  std::deque<sensor::ImuDataPtr> imu_data_;
+  std::deque<sensor::ImuData> imu_data_;
   std::unique_ptr<ImuTracker> imu_tracker_;
   std::unique_ptr<ImuTracker> odometry_imu_tracker_;
   std::unique_ptr<ImuTracker> extrapolation_imu_tracker_;
   TimedPose cached_extrapolated_pose_;
 
-  std::deque<sensor::OdometryDataPtr> odometry_data_;
+  std::deque<sensor::OdometryData> odometry_data_;
   Eigen::Vector3d linear_velocity_from_odometry_ = Eigen::Vector3d::Zero();
   Eigen::Vector3d angular_velocity_from_odometry_ = Eigen::Vector3d::Zero();
 };

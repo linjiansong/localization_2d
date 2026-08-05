@@ -96,6 +96,7 @@ void Localization::Track(const sensor::LaserDataPtr& laser_data) {
   transform::Rigid2d local_pose_estimate;
   float local_pose_score = 0.0;
   bool is_keyframe = false;
+
   // local_map_builder_->AddPointCloud(
   //     ConvertPoint(laser_data->hitting_points()),
   //     transform::Project2D(
@@ -112,9 +113,8 @@ void Localization::Track(const sensor::LaserDataPtr& laser_data) {
   //     transform::Project2D(pose_extrapolator_->cached_extrapolated_pose().pose),
   //     &local_pose_estimate, &local_pose_score, &is_keyframe);
 
-  local_map_builder_->AddLaserData(laser_data, prev_local_pose_,
-                                   &local_pose_estimate, &local_pose_score,
-                                   &is_keyframe);
+  local_map_builder_->AddLaserData(laser_data, &local_pose_estimate,
+                                   &local_pose_score, &is_keyframe);
 
   prev_local_pose_ = local_pose_estimate;
   pose_extrapolator_->AddPose(laser_data->timestamp(),
@@ -307,7 +307,7 @@ void Localization::AddInitialPose(const Eigen::Matrix4d& initial_pose) {
 void Localization::AddImuData(const sensor::ImuDataPtr& imu_data) {
   return;
   if (pose_extrapolator_ != nullptr) {
-    pose_extrapolator_->AddImuData(imu_data);
+    pose_extrapolator_->AddImuData(*imu_data);
   }
 }
 
@@ -315,7 +315,7 @@ void Localization::AddOdometryData(
     const sensor::OdometryDataPtr& odometry_data) {
   return;
   if (pose_extrapolator_ != nullptr) {
-    pose_extrapolator_->AddOdometryData(odometry_data);
+    pose_extrapolator_->AddOdometryData(*odometry_data);
   }
 }
 

@@ -24,8 +24,8 @@
 
 #pragma once
 
-#include "common/rigid_transform.h"
 #include "Eigen/Geometry"
+#include "common/rigid_transform.h"
 
 namespace solex_robot::navigation::localization_2d {
 
@@ -33,7 +33,8 @@ class ImuTracker {
  public:
   ImuTracker(double imu_gravity_time_constant, double timestamp);
 
-  // Advances to the given 'timestamp' and updates the orientation to reflect this.
+  // Advances to the given 'timestamp' and updates the orientation to reflect
+  // this.
   void Advance(double timestamp);
 
   // Updates from an IMU reading (in the IMU frame).

@@ -25,6 +25,7 @@
 #include "include/map_builder/local_map_builder.h"
 
 #include <glog/logging.h>
+#include <opencv2/opencv.hpp>
 
 namespace solex_robot::navigation::localization_2d {
 
@@ -34,27 +35,29 @@ constexpr double kDegreeToRadian = M_PI / 180.0;
 
 LocalMapBuilder::LocalMapBuilder()
     : motion_filter_(std::make_unique<MotionFilter>()),
+      pose_extrapolator_(std::make_unique<PoseExtrapolator>()),
       ndt_aligner_(std::make_unique<NDTAligner>()),
       icp_aligner_(std::make_unique<ICPAligner>()),
       active_submaps_(std::make_unique<ActiveSubmap>()),
       ceres_scan_matcher_(std::make_unique<CeresScanMatcher2D>()) {
   RealTimeCorrelativeScanMatcherOptions2D real_time_options;
-  real_time_options.linear_search_window = 0.2;
+  real_time_options.linear_search_window = 0.1;
   real_time_options.angular_search_window = 5.0 * kDegreeToRadian;
-  real_time_options.translation_delta_cost_weight = 0.1;
+  real_time_options.translation_delta_cost_weight = 10;
   real_time_options.rotation_delta_cost_weight = 0.1;
   real_time_correlative_scan_matcher_ =
       std::make_unique<RealTimeCorrelativeScanMatcher2D>(real_time_options);
 }
 
 void LocalMapBuilder::AddLaserData(const sensor::LaserDataPtr& laser_data,
-                                   const transform::Rigid2d& initial_pose,
                                    transform::Rigid2d* pose_estimate,
                                    float* score, bool* is_keyframe) {
   if (active_submaps_->submaps().empty()) {
-    laser_data->set_pose(transform::Embed3D(initial_pose));
+    pose_extrapolator_->AddPose(laser_data->timestamp(),
+                                transform::Rigid3d::Identity());
+    laser_data->set_pose(transform::Rigid3d::Identity());
     active_submaps_->InsertLaserData(laser_data);
-    *pose_estimate = initial_pose;
+    *pose_estimate = transform::Rigid2d::Identity();
     *score = 1.0;
     *is_keyframe = true;
     return;
@@ -62,6 +65,38 @@ void LocalMapBuilder::AddLaserData(const sensor::LaserDataPtr& laser_data,
 
   const ProbabilityGrid* probability_grid =
       active_submaps_->submaps().front()->probability_grid();
+  if (active_submaps_->submaps().front()->num_laser_data() == 1) {
+    const auto map_limits = probability_grid->map_limits();
+    const int width = map_limits.cell_limits().num_x_cells;
+    const int height = map_limits.cell_limits().num_y_cells;
+    cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        const Eigen::Array2i index(x, y);
+        const double probability = probability_grid->GetProbability(index);
+        const uint8_t value = 255 * (1.0 - probability);
+        image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
+      }
+    }
+
+    cv::imwrite("/home/linjs/图片/global_match/active_map.png", image);
+    // LOG(INFO) << "resolution = " << limit.resolution()
+    //           << ", width = " << limit.cell_limits().num_x_cells
+    //           << ", height = " << limit.cell_limits().num_y_cells;
+
+    // for (int y = 0; y < limit.cell_limits().num_y_cells; ++y) {
+    //   std::stringstream ss;
+    //   for (int x = 0; x < limit.cell_limits().num_x_cells; ++x) {
+    //     const Eigen::Array2i index(x, y);
+    //     const double probability = probability_grid->GetProbability(index);
+    //     const int value = 255 * probability;
+    //     ss << value << ", ";
+    //   }
+    //   LOG(INFO) << ss.str();
+    // }
+
+    getchar();
+  }
 
   std::vector<Eigen::Vector3d> point_cloud;
   point_cloud.reserve(laser_data->hitting_points().size());
@@ -70,19 +105,24 @@ void LocalMapBuilder::AddLaserData(const sensor::LaserDataPtr& laser_data,
   }
 
   // real time csm match
-  transform::Rigid2d real_time_pose_estimate;
-  float real_time_score = 0.0;
-  real_time_correlative_scan_matcher_->Match(
-      initial_pose, point_cloud, *probability_grid, &real_time_pose_estimate,
-      &real_time_score);
+  const transform::Rigid2d initial_pose = transform::Project2D(
+      pose_extrapolator_->ExtrapolatePose(laser_data->timestamp()));
+
+  transform::Rigid2d real_time_pose_estimate = initial_pose;
+  // float real_time_score = 0.0;
+  // real_time_correlative_scan_matcher_->Match(
+  //     initial_pose, point_cloud, *probability_grid, &real_time_pose_estimate,
+  //     &real_time_score);
   // LOG(INFO) << "real_time_score = " << real_time_score;
 
-  transform::Rigid2d ceres_pose_estimate = real_time_pose_estimate;
-  float ceres_match_score = real_time_score;
-  // ceres_scan_matcher_->Match(real_time_pose_estimate, point_cloud,
-  //                            *probability_grid, &ceres_pose_estimate,
-  //                            &ceres_match_score);
-  // LOG(INFO) << "ceres_match_score = " << ceres_match_score;
+  transform::Rigid2d ceres_pose_estimate;
+  float ceres_match_score;
+  ceres_scan_matcher_->Match(real_time_pose_estimate, point_cloud,
+                             *probability_grid, &ceres_pose_estimate,
+                             &ceres_match_score);
+  LOG(INFO) << "ceres_match_score = " << ceres_match_score;
+  pose_extrapolator_->AddPose(laser_data->timestamp(),
+                              transform::Embed3D(ceres_pose_estimate));
 
   *pose_estimate = ceres_pose_estimate;
   *score = ceres_match_score;
@@ -106,10 +146,7 @@ void LocalMapBuilder::AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
                                     transform::Rigid2d* pose_estimate,
                                     float* score, bool* is_keyframe) {
   if (estimated_poses_.empty()) {
-    // ndt_aligner_ = std::make_unique<NDTAligner>();
     // ndt_aligner_->AddPointCloud(point_cloud);
-
-    icp_aligner_ = std::make_unique<ICPAligner>();
     icp_aligner_->AddPointCloud(point_cloud);
     estimated_poses_.emplace_back(initial_pose);
 

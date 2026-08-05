@@ -30,7 +30,7 @@ namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr int kInitialSubmapSize = 100;
 constexpr int kNumberLaserData = 50;
-constexpr float kResolution = 0.025;
+constexpr float kResolution = 0.05;
 }  // namespace
 
 std::unique_ptr<ProbabilityGrid> ActiveSubmap::CreateGrid(
