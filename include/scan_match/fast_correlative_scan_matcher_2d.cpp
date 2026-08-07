@@ -145,9 +145,11 @@ bool FastCorrelativeScanMatcher2D::MatchFullSubmap(
       M_PI,  // Angular search window, 180 degrees in both directions.
       point_cloud, limits_.resolution());
 
-  Eigen::Vector2d center = limits_.origin();
-  center.x() += 0.5 * limits_.resolution() * limits_.cell_limits().num_x_cells;
-  center.y() -= 0.5 * limits_.resolution() * limits_.cell_limits().num_y_cells;
+  const Eigen::Vector2d center =
+      limits_.max() - 0.5 * limits_.resolution() *
+                          Eigen::Vector2d(limits_.cell_limits().num_y_cells,
+                                          limits_.cell_limits().num_x_cells);
+
   return MatchWithSearchParameters(
       search_parameters, transform::Rigid2d::Translation(center), point_cloud,
       min_score, score, pose_estimate);
@@ -250,11 +252,10 @@ FastCorrelativeScanMatcher2D::ComputeLowestResolutionCandidates(
       }
     }
 
-    Eigen::Vector2d center = limits_.origin();
-    center.x() +=
-        0.5 * limits_.resolution() * limits_.cell_limits().num_x_cells;
-    center.y() -=
-        0.5 * limits_.resolution() * limits_.cell_limits().num_y_cells;
+    const Eigen::Vector2d center =
+        limits_.max() - 0.5 * limits_.resolution() *
+                            Eigen::Vector2d(limits_.cell_limits().num_x_cells,
+                                            limits_.cell_limits().num_y_cells);
     LOG(INFO) << "center = " << center.x() << ", " << center.y();
 
     const Eigen::Array2i origin_index =

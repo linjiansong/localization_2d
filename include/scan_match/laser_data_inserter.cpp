@@ -24,6 +24,8 @@
 
 #include "include/scan_match/laser_data_inserter.h"
 
+#include <fstream>  // 必须包含这个头文件
+
 namespace solex_robot::navigation::localization_2d {
 
 namespace {
@@ -244,7 +246,7 @@ void LaserDataInserter::CastRays(const sensor::LaserDataPtr& laser_data,
   const MapLimits& limits = probability_grid->map_limits();
   const double superscaled_resolution = limits.resolution() / kSubpixelScale;
   const MapLimits superscaled_limits(
-      superscaled_resolution, limits.origin(),
+      superscaled_resolution, limits.max(),
       CellLimits(limits.cell_limits().num_x_cells * kSubpixelScale,
                  limits.cell_limits().num_y_cells * kSubpixelScale));
   const Eigen::Array2i begin = superscaled_limits.GetCellIndex(
@@ -259,9 +261,6 @@ void LaserDataInserter::CastRays(const sensor::LaserDataPtr& laser_data,
             .head<2>()));
     probability_grid->ApplyLookupTable(ends.back() / kSubpixelScale,
                                        hitting_table);
-
-    LOG(INFO) << "hitting_cell = " << ends.back().x() / kSubpixelScale << ", "
-              << ends.back().y() / kSubpixelScale;
   }
 
   if (!kInsertFreeSpace) {

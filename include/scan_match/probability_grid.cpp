@@ -76,12 +76,14 @@ std::unique_ptr<ProbabilityGrid> ProbabilityGrid::ComputeCroppedGrid() const {
   CellLimits cell_limits;
   ComputeCroppedLimits(&offset, &cell_limits);
   const double resolution = map_limits_.resolution();
-  const Eigen::Vector2d origin =
-      map_limits_.origin() +
-      resolution * Eigen::Vector2d(offset.x(), offset.y());  // Todo
+  // const Eigen::Vector2d max =
+  //     map_limits_.max() - resolution * Eigen::Vector2d(offset.x(),
+  //     offset.y());
+  const Eigen::Vector2d max =
+      map_limits_.max() - resolution * Eigen::Vector2d(offset.y(), offset.x());
   std::unique_ptr<ProbabilityGrid> cropped_grid =
-      std::make_unique<ProbabilityGrid>(
-          MapLimits(resolution, origin, cell_limits), conversion_tables_);
+      std::make_unique<ProbabilityGrid>(MapLimits(resolution, max, cell_limits),
+                                        conversion_tables_);
   for (const Eigen::Array2i& xy_index : XYIndexRangeIterator(cell_limits)) {
     if (IsKnown(xy_index + offset)) {
       cropped_grid->SetProbability(xy_index, GetProbability(xy_index + offset));
@@ -106,12 +108,18 @@ void ProbabilityGrid::GrowLimits(const Eigen::Vector2f& point) {
     const CellLimits& cell_limits = map_limits_.cell_limits();
     const int x_offset = cell_limits.num_x_cells / 2;
     const int y_offset = cell_limits.num_y_cells / 2;
-    const Eigen::Vector2d new_origin = Eigen::Vector2d(
-        map_limits_.origin().x() - map_limits_.resolution() * x_offset,
-        map_limits_.origin().y() + map_limits_.resolution() * y_offset);
+    // const MapLimits new_limits(
+    //     map_limits_.resolution(),
+    //     map_limits_.max() +
+    //         map_limits_.resolution() * Eigen::Vector2d(x_offset, y_offset),
+    //     CellLimits(2 * map_limits_.cell_limits().num_x_cells,
+    //                2 * map_limits_.cell_limits().num_y_cells));
     const MapLimits new_limits(
-        map_limits_.resolution(), new_origin,
-        CellLimits(2 * cell_limits.num_x_cells, 2 * cell_limits.num_y_cells));
+        map_limits_.resolution(),
+        map_limits_.max() +
+            map_limits_.resolution() * Eigen::Vector2d(y_offset, x_offset),
+        CellLimits(2 * map_limits_.cell_limits().num_x_cells,
+                   2 * map_limits_.cell_limits().num_y_cells));
     const int stride = new_limits.cell_limits().num_x_cells;
     const int offset = x_offset + stride * y_offset;
     const int new_size = new_limits.cell_limits().num_x_cells *

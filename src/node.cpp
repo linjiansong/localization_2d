@@ -110,6 +110,9 @@ LocalizationNode::LocalizationNode()
       std::bind(&LocalizationNode::PublishLocalMap, this));
 
   LOG(INFO) << "Sensor Subscriber Node has been started.";
+  locator_->Test();
+  LOG(INFO)
+      << "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++";
 }
 
 void LocalizationNode::HandleScanMessage(
@@ -147,11 +150,7 @@ void LocalizationNode::HandleScanMessage(
       std::make_shared<sensor::LaserData>(start_time);
   for (size_t index = 0; index < msg->ranges.size(); ++index) {
     const float range = msg->ranges[index];
-    // if (range < msg->range_min) {
-    //   continue;
-    // }
-
-    if (range < 0.3) {
+    if (range < msg->range_min || range > msg->range_max) {  // Todo
       continue;
     }
 
@@ -203,6 +202,7 @@ void LocalizationNode::HandleOdometryMessage(
 void LocalizationNode::HandleImuMessage(
     const sensor_msgs::msg::Imu::SharedPtr msg) {
   CHECK_NOTNULL(msg);
+  return;
   std::unique_lock<std::mutex> lock(mutex_);
 
   // LOG(INFO) << "delta time = " << this->now().seconds() -
@@ -405,9 +405,10 @@ void LocalizationNode::PublishLocalMap() {
   map_msg->info.width = width;
   map_msg->info.height = height;
 
-  map_msg->info.origin.position.x = map_limits.origin().x();
+  map_msg->info.origin.position.x =
+      map_limits.max().x() - map_limits.resolution() * width;
   map_msg->info.origin.position.y =
-      map_limits.origin().y() - map_limits.resolution() * height;
+      map_limits.max().y() - map_limits.resolution() * height;
   map_msg->info.origin.position.z = 0.0;
   map_msg->info.origin.orientation.w = 1.0;
 

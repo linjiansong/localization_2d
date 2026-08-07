@@ -114,6 +114,8 @@ class GridArrayAdapter {
     } else {
       *value = static_cast<double>(probability_grid_.GetCorrespondenceCost(
           Eigen::Array2i(column - kPadding, row - kPadding)));
+      // *value = static_cast<double>(probability_grid_.GetCorrespondenceCost(
+      //     Eigen::Array2i(row - kPadding, column - kPadding)));
     }
   }
 
@@ -158,12 +160,14 @@ class OccupiedSpaceCostFunction2D {
 
     for (size_t i = 0; i < point_cloud_.size(); ++i) {
       // Note that this is a 2D point. The third component is a scaling factor.
-      const Eigen::Matrix<T, 3, 1> point = point_cloud_[i].cast<T>();
+      // const Eigen::Matrix<T, 3, 1> point = point_cloud_[i].cast<T>();
+      const Eigen::Matrix<T, 3, 1> point(T(point_cloud_[i].x()),
+                                         T(point_cloud_[i].y()), T(1.));
       const Eigen::Matrix<T, 3, 1> world = transform * point;
       interpolator.Evaluate(
-          (world[0] - map_limits.origin().x()) / map_limits.resolution() - 0.5 +
+          (map_limits.max().x() - world[0]) / map_limits.resolution() - 0.5 +
               static_cast<double>(kPadding),
-          (map_limits.origin().y() - world[1]) / map_limits.resolution() - 0.5 +
+          (map_limits.max().y() - world[1]) / map_limits.resolution() - 0.5 +
               static_cast<double>(kPadding),
           &residual[i]);
       residual[i] = scaling_factor_ * residual[i];

@@ -46,11 +46,6 @@ class LocalMapBuilder {
  public:
   LocalMapBuilder();
 
-  void AddPointCloud(std::vector<Eigen::Vector3d> point_cloud,
-                     const transform::Rigid2d& initial_pose,
-                     transform::Rigid2d* final_pose, float* score,
-                     bool* is_keyframe);
-
   void AddLaserData(const sensor::LaserDataPtr& laser_data,
                     transform::Rigid2d* pose_estimate, float* score,
                     bool* is_keyframe);

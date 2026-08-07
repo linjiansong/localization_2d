@@ -265,9 +265,9 @@ class ValueConversionTables {
 
 class MapLimits {
  public:
-  MapLimits(const double resolution, const Eigen::Vector2d& origin,
+  MapLimits(const double resolution, const Eigen::Vector2d& max,
             const CellLimits& cell_limits)
-      : resolution_(resolution), origin_(origin), cell_limits_(cell_limits) {
+      : resolution_(resolution), max_(max), cell_limits_(cell_limits) {
     CHECK_GT(resolution_, 0);
     CHECK_GT(cell_limits.num_x_cells, 0);
     CHECK_GT(cell_limits.num_y_cells, 0);
@@ -279,7 +279,7 @@ class MapLimits {
 
   // Returns the corner of the limits, i.e., all pixels have positions with
   // smaller coordinates.
-  const Eigen::Vector2d& origin() const { return origin_; }
+  const Eigen::Vector2d& max() const { return max_; }
 
   // Returns the limits of the grid in number of cells.
   const CellLimits& cell_limits() const { return cell_limits_; }
@@ -291,15 +291,12 @@ class MapLimits {
     // Index values are row major and the top left has Eigen::Array2i::Zero()
     // and contains (centered_max_x, centered_max_y). We need to flip and
     // rotate.
+    // return Eigen::Array2i(
+    //     std::lround((max_.x() - point.x()) / resolution_ - 0.5),
+    //     std::lround((max_.y() - point.y()) / resolution_ - 0.5));
     return Eigen::Array2i(
-        std::lround((point.x() - origin_.x()) / resolution_ - 0.5),
-        std::lround((origin_.y() - point.y()) / resolution_ - 0.5));
-  }
-
-  // Returns the center of the cell at 'cell_index'.
-  Eigen::Vector2d GetCellCenter(const Eigen::Array2i cell_index) const {
-    return Eigen::Vector2d(origin_.x() + resolution_ * (cell_index[0] + 0.5),
-                           origin_.y() - resolution_ * (cell_index[1] + 0.5));
+        std::lround((max_.y() - point.y()) / resolution_ - 0.5),
+        std::lround((max_.x() - point.x()) / resolution_ - 0.5));
   }
 
   // Returns true if the ProbabilityGrid contains 'cell_index'.
@@ -312,7 +309,7 @@ class MapLimits {
 
  private:
   double resolution_;
-  Eigen::Vector2d origin_;
+  Eigen::Vector2d max_;
   CellLimits cell_limits_;
 };
 

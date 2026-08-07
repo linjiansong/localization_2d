@@ -97,11 +97,12 @@ void Localization::Track(const sensor::LaserDataPtr& laser_data) {
   float local_pose_score = 0.0;
   bool is_keyframe = false;
 
-  // local_map_builder_->AddPointCloud(
-  //     ConvertPoint(laser_data->hitting_points()),
-  //     transform::Project2D(
-  //         pose_extrapolator_->ExtrapolatePose(laser_data.timestamp())),
-  //     &local_pose_estimate, &local_pose_score, &is_keyframe);
+  local_map_builder_->AddLaserData(laser_data, &local_pose_estimate,
+                                   &local_pose_score, &is_keyframe);
+  prev_local_pose_ = local_pose_estimate;
+
+  // pose_extrapolator_->AddPose(laser_data->timestamp(),
+  //                             transform::Embed3D(local_pose_estimate));
 
   // local_map_builder_->AddPointCloud(
   //     ConvertPoint(laser_data->hitting_points()),
@@ -113,12 +114,12 @@ void Localization::Track(const sensor::LaserDataPtr& laser_data) {
   //     transform::Project2D(pose_extrapolator_->cached_extrapolated_pose().pose),
   //     &local_pose_estimate, &local_pose_score, &is_keyframe);
 
-  local_map_builder_->AddLaserData(laser_data, &local_pose_estimate,
-                                   &local_pose_score, &is_keyframe);
+  // local_map_builder_->AddLaserData(laser_data, &local_pose_estimate,
+  //                                  &local_pose_score, &is_keyframe);
 
-  prev_local_pose_ = local_pose_estimate;
-  pose_extrapolator_->AddPose(laser_data->timestamp(),
-                              transform::Embed3D(local_pose_estimate));
+  // prev_local_pose_ = local_pose_estimate;
+  // pose_extrapolator_->AddPose(laser_data->timestamp(),
+  //                             transform::Embed3D(local_pose_estimate));
 
   LOG(INFO) << "local_pose_score = " << local_pose_score;
 
@@ -350,5 +351,59 @@ const ProbabilityGrid* Localization::GetLocalMap() {
   }
 
   return submaps.front()->probability_grid();
+}
+
+void Localization::Test() {
+  // auto read_file = [](const std::string& filename)
+  //     -> std::vector<std::pair<double, transform::Rigid2d>> {
+  //   std::vector<std::pair<double, transform::Rigid2d>> poses;
+  //   std::ifstream file(filename);
+  //   if (!file.is_open()) {
+  //     std::cerr << "Failed to open file: " << filename << std::endl;
+  //     return poses;
+  //   }
+
+  //   std::string line;
+  //   while (std::getline(file, line)) {
+  //     double time = 0.0;
+  //     double x = 0.0;
+  //     double y = 0.0;
+  //     double angle = 0.0;
+  //     if (sscanf(line.c_str(), "time = %lf, [%lf, %lf, %lf]", &time, &x, &y,
+  //                &angle) == 4) {
+  //       transform::Rigid2d pose =
+  //           transform::Rigid2d({x, y}, Eigen::Rotation2Dd(angle));
+  //       poses.emplace_back(time, pose);
+  //     }
+  //   }
+
+  //   file.close();
+  //   LOG(INFO) << "poses = " << poses.size();
+  //   return poses;
+  // };
+
+  // const auto add_poses = read_file("/home/linjs/test_ws/add_pose.txt");
+  // const auto guess_poses = read_file("/home/linjs/test_ws/guess_pose.txt");
+  // auto pose_extrapolator = std::make_shared<PoseExtrapolator>();
+  // for (std::size_t idx = 0; idx < add_poses.size(); ++idx) {
+  //   pose_extrapolator->AddPose(add_poses[idx].first,
+  //                              transform::Embed3D(add_poses[idx].second));
+  //   if (idx > 0) {
+  //     const auto& guess_pose = transform::Project2D(
+  //         pose_extrapolator->ExtrapolatePose(add_poses[idx].first));
+  //     LOG(INFO) << "delta_time = "
+  //               << add_poses[idx].first - guess_poses[idx - 1].first
+  //               << ", delta = ["
+  //               << guess_pose.translation().x() -
+  //                      guess_poses[idx - 1].second.translation().x()
+  //               << ", "
+  //               << guess_pose.translation().y() -
+  //                      guess_poses[idx - 1].second.translation().y()
+  //               << ", "
+  //               << guess_pose.rotation().angle() -
+  //                      guess_poses[idx - 1].second.rotation().angle()
+  //               << "]";
+  //   }
+  // }
 }
 }  // namespace solex_robot::navigation::localization_2d
