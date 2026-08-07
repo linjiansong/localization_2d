@@ -99,30 +99,9 @@ void Localization::Track(const sensor::LaserDataPtr& laser_data) {
 
   local_map_builder_->AddLaserData(laser_data, &local_pose_estimate,
                                    &local_pose_score, &is_keyframe);
-  prev_local_pose_ = local_pose_estimate;
 
-  // pose_extrapolator_->AddPose(laser_data->timestamp(),
-  //                             transform::Embed3D(local_pose_estimate));
-
-  // local_map_builder_->AddPointCloud(
-  //     ConvertPoint(laser_data->hitting_points()),
-  //     transform::Project2D(pose_extrapolator_->cached_extrapolated_pose().pose),
-  //     &local_pose_estimate, &local_pose_score, &is_keyframe);
-
-  // local_map_builder_->AddLaserData(
-  //     laser_data,
-  //     transform::Project2D(pose_extrapolator_->cached_extrapolated_pose().pose),
-  //     &local_pose_estimate, &local_pose_score, &is_keyframe);
-
-  // local_map_builder_->AddLaserData(laser_data, &local_pose_estimate,
-  //                                  &local_pose_score, &is_keyframe);
-
-  // prev_local_pose_ = local_pose_estimate;
-  // pose_extrapolator_->AddPose(laser_data->timestamp(),
-  //                             transform::Embed3D(local_pose_estimate));
-
-  // LOG(INFO) << "local_pose_score = " << local_pose_score;
-
+  pose_extrapolator_->AddPose(laser_data->timestamp(),
+                              transform::Embed3D(local_pose_estimate));
   if (!is_keyframe) {
     return;
   }
@@ -144,18 +123,6 @@ void Localization::Track(const sensor::LaserDataPtr& laser_data) {
   // }
 }
 
-void Localization::DistordPointCloud(const sensor::LaserDataPtr& laser_data) {
-  const transform::Rigid3d start_pose =
-      pose_extrapolator_->ExtrapolatePose(laser_data->timestamp());
-
-  for (const sensor::TimedPointPtr timed_point : laser_data->hitting_points()) {
-    const transform::Rigid3d curr_pose =
-        pose_extrapolator_->ExtrapolatePose(timed_point->timestamp);
-    timed_point->position =
-        start_pose.inverse() * curr_pose * timed_point->position;
-  }
-}
-
 float Localization::CalculateMatchScore(
     const sensor::LaserDataPtr& laser_data) {
   if (pose_graph_ == nullptr || probability_grid_ == nullptr) {
@@ -169,7 +136,9 @@ float Localization::CalculateMatchScore(
 
   const transform::Rigid2d pose_estimate =
       optimized_node->optimized_pose *
-      optimized_node->constraint_data->local_pose.inverse() * prev_local_pose_;
+      optimized_node->constraint_data->local_pose.inverse() *
+      transform::Project2D(
+          pose_extrapolator_->ExtrapolatePose(laser_data->timestamp()));
 
   const MapLimits& map_limits = probability_grid_->map_limits();
 
@@ -187,50 +156,6 @@ float Localization::CalculateMatchScore(
   }
 
   score /= static_cast<float>(laser_data->hitting_points().size());
-
-  // {
-  //   static int count = 0;
-  //   const MapLimits& map_limits = probability_grid_->map_limits();
-  //   const int width = map_limits.cell_limits().num_x_cells;
-  //   const int height = map_limits.cell_limits().num_y_cells;
-
-  //   cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
-  //   for (int y = 0; y < height; ++y) {
-  //     for (int x = 0; x < width; ++x) {
-  //       const Eigen::Array2i index(x, y);
-  //       const double probability = probability_grid_->GetProbability(index);
-  //       const uint8_t value = 255 * (1.0 - probability);
-  //       image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
-  //     }
-  //   }
-
-  //   if (pose_extrapolator_ == nullptr) {
-  //     return score;
-  //   }
-
-  //   const transform::Rigid2d pose_estimate2 =
-  //       optimized_node->optimized_pose *
-  //       optimized_node->constraint_data->local_pose.inverse() *
-  //       transform::Project2D(pose_extrapolator_->latest_pose());
-
-  //   for (const sensor::TimedPointPtr& timed_point : laser_data.points())
-  //   {
-  //     const Eigen::Vector2d world_point =
-  //         pose_estimate2 * timed_point->position.head<2>();
-
-  //     const Eigen::Array2i proposed_xy_index =
-  //         map_limits.GetCellIndex(world_point.cast<float>());
-
-  //     if (map_limits.Contains(proposed_xy_index)) {
-  //       image.at<cv::Vec3b>(proposed_xy_index.y(), proposed_xy_index.x()) =
-  //           cv::Vec3b(0, 0, 255);
-  //     }
-  //   }
-
-  //   cv::imwrite("/home/linjs/图片/local_match/match_" +
-  //                   std::to_string(count++) + ".png",
-  //               image);
-  // }
 
   return score;
 }
@@ -260,14 +185,6 @@ void Localization::EvaluateLocalizationStatus(
 }
 
 void Localization::AddLaserData(const sensor::LaserDataPtr& laser_data) {
-  // if (local_map_builder_ == nullptr || pose_extrapolator_ == nullptr) {
-  //   local_map_builder_ = std::make_shared<LocalMapBuilder>();
-  //   pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
-  // }
-
-  // Track(laser_data);
-
-  // return;
   if (localization_status_ == LocalizationStatus::kUnknown ||
       localization_status_ == LocalizationStatus::kFailed) {
     return;
@@ -321,8 +238,6 @@ void Localization::AddOdometryData(
 }
 
 const Eigen::Matrix4d Localization::GetLatestPose(const double timestamp) {
-  // return ToMatrix4d(prev_local_pose_);
-
   if (pose_graph_ == nullptr || pose_extrapolator_ == nullptr) {
     return Eigen::Matrix4d::Identity();
   }
@@ -334,12 +249,8 @@ const Eigen::Matrix4d Localization::GetLatestPose(const double timestamp) {
 
   const transform::Rigid2d pose_estimate =
       optimized_node->optimized_pose *
-      optimized_node->constraint_data->local_pose.inverse() * prev_local_pose_;
-
-  // const transform::Rigid2d pose_estimate =
-  //     optimized_node->optimized_pose *
-  //     optimized_node->constraint_data->local_pose.inverse() *
-  //     transform::Project2D(pose_extrapolator_->ExtrapolatePose(timestamp));
+      optimized_node->constraint_data->local_pose.inverse() *
+      transform::Project2D(pose_extrapolator_->ExtrapolatePose(timestamp));
 
   return ToMatrix4d(pose_estimate);
 }

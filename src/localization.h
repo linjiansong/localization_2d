@@ -57,8 +57,6 @@ class Localization {
   const ProbabilityGrid* GetLocalMap();
 
  private:
-  void DistordPointCloud(const sensor::LaserDataPtr& laser_data);
-
   std::pair<Eigen::Matrix4d, float> MatchGlobalMap(
       const std::vector<Eigen::Vector3d>& points,
       const Eigen::Matrix4d& initial_pose);
