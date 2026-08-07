@@ -130,14 +130,14 @@ void LocalMapBuilder::AddLaserData(const sensor::LaserDataPtr& laser_data,
   real_time_correlative_scan_matcher_->Match(
       initial_pose, point_cloud, *probability_grid, &real_time_pose_estimate,
       &real_time_score);
-  LOG(INFO) << "real_time_score = " << real_time_score;
+  // LOG(INFO) << "real_time_score = " << real_time_score;
 
   transform::Rigid2d ceres_pose_estimate;
   float ceres_match_score;
   ceres_scan_matcher_->Match(real_time_pose_estimate, point_cloud,
                              *probability_grid, &ceres_pose_estimate,
                              &ceres_match_score);
-  LOG(INFO) << "ceres_match_score = " << ceres_match_score;
+  // LOG(INFO) << "ceres_match_score = " << ceres_match_score;
   pose_extrapolator_->AddPose(laser_data->timestamp(),
                               transform::Embed3D(ceres_pose_estimate));
 
@@ -152,9 +152,9 @@ void LocalMapBuilder::AddLaserData(const sensor::LaserDataPtr& laser_data,
   *is_keyframe = true;
   laser_data->set_pose(transform::Embed3D(*pose_estimate));
   active_submaps_->InsertLaserData(laser_data);
-  LOG(INFO) << "pose_estimate = [" << pose_estimate->translation().x() << ", "
-            << pose_estimate->translation().x() << ", "
-            << pose_estimate->rotation().angle() << "], score = " << *score;
+  // LOG(INFO) << "pose_estimate = [" << pose_estimate->translation().x() << ", "
+  //           << pose_estimate->translation().x() << ", "
+  //           << pose_estimate->rotation().angle() << "], score = " << *score;
 }
 
 const std::vector<std::shared_ptr<Submap>> LocalMapBuilder::GetLocalMap()

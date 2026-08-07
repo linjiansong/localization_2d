@@ -56,8 +56,6 @@ class Localization {
   const Eigen::Matrix4d GetLatestPose(const double timestamp);
   const ProbabilityGrid* GetLocalMap();
 
-  void Test();
-
  private:
   void DistordPointCloud(const sensor::LaserDataPtr& laser_data);
 

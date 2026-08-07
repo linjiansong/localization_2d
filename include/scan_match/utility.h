@@ -224,9 +224,7 @@ struct Candidate2D {
       : scan_index(init_scan_index),
         x_index_offset(init_x_index_offset),
         y_index_offset(init_y_index_offset),
-        // x(-y_index_offset * search_parameters.resolution),
-        // y(-x_index_offset * search_parameters.resolution),
-        x(x_index_offset * search_parameters.resolution),
+        x(-x_index_offset * search_parameters.resolution),
         y(-y_index_offset * search_parameters.resolution),
         orientation((scan_index - search_parameters.num_angular_perturbations) *
                     search_parameters.angular_perturbation_step_size) {}

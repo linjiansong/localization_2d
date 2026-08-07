@@ -67,14 +67,14 @@ FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
       for (int x = 0; x < wide_limits.num_x_cells; ++x) {
         const int flat_index = y * wide_limits.num_x_cells + x;
         const uint8_t value = cells[flat_index];
-        image.at<uchar>(y, x) = 255 - value;
+        image.at<uchar>(y, wide_limits.num_x_cells - 1 - x) = 255 - value;
       }
     }
 
-    // const std::string image_path =
-    //     "/home/linjs/图片/multimap_" + std::to_string(depth) + ".png";
-    // LOG(INFO) << "image_path = " << image_path;
-    // cv::imwrite(image_path, image);
+    const std::string image_path =
+        "/home/linjs/图片/multimap_" + std::to_string(depth) + ".png";
+    LOG(INFO) << "image_path = " << image_path;
+    cv::imwrite(image_path, image);
   }
 }
 
@@ -147,8 +147,8 @@ bool FastCorrelativeScanMatcher2D::MatchFullSubmap(
 
   const Eigen::Vector2d center =
       limits_.max() - 0.5 * limits_.resolution() *
-                          Eigen::Vector2d(limits_.cell_limits().num_y_cells,
-                                          limits_.cell_limits().num_x_cells);
+                          Eigen::Vector2d(limits_.cell_limits().num_x_cells,
+                                          limits_.cell_limits().num_y_cells);
 
   return MatchWithSearchParameters(
       search_parameters, transform::Rigid2d::Translation(center), point_cloud,

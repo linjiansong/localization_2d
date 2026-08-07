@@ -51,6 +51,7 @@ constexpr std::array<double, 6> kFixedPoseWeiht = {1.e3, 1.e3, 1.e3,
                                                    1.e2, 1.e2, 1.e2};
 
 constexpr int kFixedPoseHuberLoss = 20.0;
+constexpr int kMinTrackConstraintScore = 0.3;
 constexpr int kMinGlobalLocalizationScore = 0.3;
 constexpr int kMinRelocalizationScore = 0.4;
 
@@ -87,19 +88,17 @@ void PoseGraph::ComputeTrackConstraint(
       initial_pose_estimate, constraint_data->points, *probability_grid_,
       &real_time_pose_estimate, &real_time_score);
 
-  float ceres_match_score = real_time_score;
-  transform::Rigid2d ceres_pose_estimate = real_time_pose_estimate;
-  // float ceres_match_score = 0.0;
-  // transform::Rigid2d ceres_pose_estimate;
-  // ceres_scan_matcher_->Match(real_time_pose_estimate,
-  // constraint_data->points, probability_grid_,
-  //                            &ceres_pose_estimate, &ceres_match_score);
-
-  if (ceres_match_score < kMinGlobalLocalizationScore) {
+  float ceres_match_score = 0.0;
+  transform::Rigid2d ceres_pose_estimate;
+  ceres_scan_matcher_->Match(real_time_pose_estimate, constraint_data->points,
+                             *probability_grid_, &ceres_pose_estimate,
+                             &ceres_match_score);
+  if (ceres_match_score < kMinTrackConstraintScore) {
     return;
   }
 
-  LOG(INFO) << "ceres_match_score = " << ceres_match_score;
+  // LOG(INFO) << "real_time_score = " << real_time_score
+  //           << ", ceres_match_score = " << ceres_match_score;
 
   constraint_data->global_pose = ceres_pose_estimate;
   constraint_data->global_pose_score = ceres_match_score;
@@ -111,33 +110,33 @@ void PoseGraph::ComputeTrackConstraint(
 
   AddNode(new_node);
 
-  {
-    static int count = 0;
-    const MapLimits& map_limits = probability_grid_->map_limits();
-    const int width = map_limits.cell_limits().num_x_cells;
-    const int height = map_limits.cell_limits().num_y_cells;
+  // {
+  //   static int count = 0;
+  //   const MapLimits& map_limits = probability_grid_->map_limits();
+  //   const int width = map_limits.cell_limits().num_x_cells;
+  //   const int height = map_limits.cell_limits().num_y_cells;
 
-    cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
-    for (int y = 0; y < height; ++y) {
-      for (int x = 0; x < width; ++x) {
-        const Eigen::Array2i index(x, y);
-        const double probability = probability_grid_->GetProbability(index);
-        const uint8_t value = 255 * (1.0 - probability);
-        image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
-      }
-    }
+  //   cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
+  //   for (int y = 0; y < height; ++y) {
+  //     for (int x = 0; x < width; ++x) {
+  //       const Eigen::Array2i index(x, y);
+  //       const double probability = probability_grid_->GetProbability(index);
+  //       const uint8_t value = 255 * (1.0 - probability);
+  //       image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
+  //     }
+  //   }
 
-    for (const Eigen::Vector3d& point : constraint_data->points) {
-      const Eigen::Vector2d new_point = ceres_pose_estimate * point.head<2>();
-      const Eigen::Array2i index =
-          map_limits.GetCellIndex(new_point.cast<float>());
-      image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 0, 255);
-    }
+  //   for (const Eigen::Vector3d& point : constraint_data->points) {
+  //     const Eigen::Vector2d new_point = ceres_pose_estimate *
+  //     point.head<2>(); const Eigen::Array2i index =
+  //         map_limits.GetCellIndex(new_point.cast<float>());
+  //     image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 0, 255);
+  //   }
 
-    cv::imwrite("/home/linjs/图片/global_match/match_" +
-                    std::to_string(count++) + ".png",
-                image);
-  }
+  //   cv::imwrite("/home/linjs/图片/global_match/match_" +
+  //                   std::to_string(count++) + ".png",
+  //               image);
+  // }
 }
 
 void PoseGraph::ComputeGlobalConstraint(
@@ -150,19 +149,16 @@ void PoseGraph::ComputeGlobalConstraint(
       constraint_data->points, kMinGlobalLocalizationScore, &fast_match_score,
       &fast_pose_estimate);
 
+  float ceres_match_score = 0.0;
+  transform::Rigid2d ceres_pose_estimate;
+  ceres_scan_matcher_->Match(fast_pose_estimate, constraint_data->points,
+                             *probability_grid_, &ceres_pose_estimate,
+                             &ceres_match_score);
   LOG(INFO) << "fast_pose_estimate = [" << fast_pose_estimate.translation().x()
             << ", " << fast_pose_estimate.translation().y() << ", "
             << fast_pose_estimate.rotation().angle()
-            << "], fast_match_score = " << fast_match_score;
-
-  float ceres_match_score = fast_match_score;
-  transform::Rigid2d ceres_pose_estimate = fast_pose_estimate;
-  // float ceres_match_score = 0.0;
-  // transform::Rigid2d ceres_pose_estimate;
-  // ceres_scan_matcher_->Match(fast_pose_estimate, constraint_data->points,
-  //                            probability_grid_, &ceres_pose_estimate,
-  //                            &ceres_match_score);
-  // LOG(INFO) << "ceres_match_score = " << ceres_match_score;
+            << "], fast_match_score = " << fast_match_score
+            << ", ceres_match_score = " << ceres_match_score;
   if (ceres_match_score < kMinGlobalLocalizationScore) {
     return;
   }
@@ -188,19 +184,16 @@ void PoseGraph::ComputeLocalConstraint(
       constraint_data->initial_pose_estimate, constraint_data->points,
       kMinRelocalizationScore, &fast_match_score, &fast_pose_estimate);
 
+  float ceres_match_score = 0.0;
+  transform::Rigid2d ceres_pose_estimate;
+  ceres_scan_matcher_->Match(fast_pose_estimate, constraint_data->points,
+                             *probability_grid_, &ceres_pose_estimate,
+                             &ceres_match_score);
   LOG(INFO) << "fast_pose_estimate = [" << fast_pose_estimate.translation().x()
             << ", " << fast_pose_estimate.translation().y() << ", "
             << fast_pose_estimate.rotation().angle()
-            << "], fast_match_score = " << fast_match_score;
-
-  float ceres_match_score = fast_match_score;
-  transform::Rigid2d ceres_pose_estimate = fast_pose_estimate;
-  // float ceres_match_score = 0.0;
-  // transform::Rigid2d ceres_pose_estimate;
-  // ceres_scan_matcher_->Match(fast_pose_estimate, constraint_data->points,
-  //                            probability_grid_, &ceres_pose_estimate,
-  //                            &ceres_match_score);
-  // LOG(INFO) << "ceres_match_score = " << ceres_match_score;
+            << "], fast_match_score = " << fast_match_score
+            << ", ceres_match_score = " << ceres_match_score;
   if (ceres_match_score < kMinRelocalizationScore) {
     return;
   }

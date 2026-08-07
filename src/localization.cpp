@@ -121,17 +121,17 @@ void Localization::Track(const sensor::LaserDataPtr& laser_data) {
   // pose_extrapolator_->AddPose(laser_data->timestamp(),
   //                             transform::Embed3D(local_pose_estimate));
 
-  LOG(INFO) << "local_pose_score = " << local_pose_score;
+  // LOG(INFO) << "local_pose_score = " << local_pose_score;
 
-  // if (!is_keyframe) {
-  //   return;
-  // }
+  if (!is_keyframe) {
+    return;
+  }
 
-  // if (localization_status_ == LocalizationStatus::kSuccess) {
-  //   pose_graph_->AddTrackingConstraint(
-  //       laser_data->timestamp(), ConvertPoint(laser_data->hitting_points()),
-  //       local_pose_estimate, local_pose_score);
-  // }
+  if (localization_status_ == LocalizationStatus::kSuccess) {
+    pose_graph_->AddTrackingConstraint(
+        laser_data->timestamp(), ConvertPoint(laser_data->hitting_points()),
+        local_pose_estimate, local_pose_score);
+  }
 
   // if (localization_status_ == LocalizationStatus::kSuccess) {
   //   pose_graph_->AddTrackingConstraint(laser_data->timestamp(),
@@ -260,14 +260,14 @@ void Localization::EvaluateLocalizationStatus(
 }
 
 void Localization::AddLaserData(const sensor::LaserDataPtr& laser_data) {
-  if (local_map_builder_ == nullptr || pose_extrapolator_ == nullptr) {
-    local_map_builder_ = std::make_shared<LocalMapBuilder>();
-    pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
-  }
+  // if (local_map_builder_ == nullptr || pose_extrapolator_ == nullptr) {
+  //   local_map_builder_ = std::make_shared<LocalMapBuilder>();
+  //   pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
+  // }
 
-  Track(laser_data);
+  // Track(laser_data);
 
-  return;
+  // return;
   if (localization_status_ == LocalizationStatus::kUnknown ||
       localization_status_ == LocalizationStatus::kFailed) {
     return;
@@ -321,7 +321,7 @@ void Localization::AddOdometryData(
 }
 
 const Eigen::Matrix4d Localization::GetLatestPose(const double timestamp) {
-  return ToMatrix4d(prev_local_pose_);
+  // return ToMatrix4d(prev_local_pose_);
 
   if (pose_graph_ == nullptr || pose_extrapolator_ == nullptr) {
     return Eigen::Matrix4d::Identity();
@@ -334,8 +334,12 @@ const Eigen::Matrix4d Localization::GetLatestPose(const double timestamp) {
 
   const transform::Rigid2d pose_estimate =
       optimized_node->optimized_pose *
-      optimized_node->constraint_data->local_pose.inverse() *
-      transform::Project2D(pose_extrapolator_->ExtrapolatePose(timestamp));
+      optimized_node->constraint_data->local_pose.inverse() * prev_local_pose_;
+
+  // const transform::Rigid2d pose_estimate =
+  //     optimized_node->optimized_pose *
+  //     optimized_node->constraint_data->local_pose.inverse() *
+  //     transform::Project2D(pose_extrapolator_->ExtrapolatePose(timestamp));
 
   return ToMatrix4d(pose_estimate);
 }
@@ -353,57 +357,4 @@ const ProbabilityGrid* Localization::GetLocalMap() {
   return submaps.front()->probability_grid();
 }
 
-void Localization::Test() {
-  // auto read_file = [](const std::string& filename)
-  //     -> std::vector<std::pair<double, transform::Rigid2d>> {
-  //   std::vector<std::pair<double, transform::Rigid2d>> poses;
-  //   std::ifstream file(filename);
-  //   if (!file.is_open()) {
-  //     std::cerr << "Failed to open file: " << filename << std::endl;
-  //     return poses;
-  //   }
-
-  //   std::string line;
-  //   while (std::getline(file, line)) {
-  //     double time = 0.0;
-  //     double x = 0.0;
-  //     double y = 0.0;
-  //     double angle = 0.0;
-  //     if (sscanf(line.c_str(), "time = %lf, [%lf, %lf, %lf]", &time, &x, &y,
-  //                &angle) == 4) {
-  //       transform::Rigid2d pose =
-  //           transform::Rigid2d({x, y}, Eigen::Rotation2Dd(angle));
-  //       poses.emplace_back(time, pose);
-  //     }
-  //   }
-
-  //   file.close();
-  //   LOG(INFO) << "poses = " << poses.size();
-  //   return poses;
-  // };
-
-  // const auto add_poses = read_file("/home/linjs/test_ws/add_pose.txt");
-  // const auto guess_poses = read_file("/home/linjs/test_ws/guess_pose.txt");
-  // auto pose_extrapolator = std::make_shared<PoseExtrapolator>();
-  // for (std::size_t idx = 0; idx < add_poses.size(); ++idx) {
-  //   pose_extrapolator->AddPose(add_poses[idx].first,
-  //                              transform::Embed3D(add_poses[idx].second));
-  //   if (idx > 0) {
-  //     const auto& guess_pose = transform::Project2D(
-  //         pose_extrapolator->ExtrapolatePose(add_poses[idx].first));
-  //     LOG(INFO) << "delta_time = "
-  //               << add_poses[idx].first - guess_poses[idx - 1].first
-  //               << ", delta = ["
-  //               << guess_pose.translation().x() -
-  //                      guess_poses[idx - 1].second.translation().x()
-  //               << ", "
-  //               << guess_pose.translation().y() -
-  //                      guess_poses[idx - 1].second.translation().y()
-  //               << ", "
-  //               << guess_pose.rotation().angle() -
-  //                      guess_poses[idx - 1].second.rotation().angle()
-  //               << "]";
-  //   }
-  // }
-}
 }  // namespace solex_robot::navigation::localization_2d

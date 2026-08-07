@@ -110,9 +110,6 @@ LocalizationNode::LocalizationNode()
       std::bind(&LocalizationNode::PublishLocalMap, this));
 
   LOG(INFO) << "Sensor Subscriber Node has been started.";
-  locator_->Test();
-  LOG(INFO)
-      << "+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++";
 }
 
 void LocalizationNode::HandleScanMessage(
@@ -301,37 +298,36 @@ void LocalizationNode::HandleGridMapMessage(
       const float cost = std::clamp(1.f - probability, kMinCorrespondenceCost,
                                     kMaxCorrespondenceCost);
       const float value = (cost - kMinCorrespondenceCost) / scale + 1.0f;
-      const int flat_index = (height - y - 1) * width + x;
+      const int flat_index = (height - y - 1) * width + (width - x - 1);
       correspondence_cost_cells[flat_index] = value;
     }
   }
 
   // 计算左上角坐标 (max)
   // 这是 Cartographer MapLimits 所需要的坐标基准
-  const Eigen::Vector2d grid_origin(
-      msg->info.origin.position.x,
+  const Eigen::Vector2d grid_max(
+      msg->info.origin.position.x + width * resolution,
       msg->info.origin.position.y + height * resolution);
-  const MapLimits map_limits(resolution, grid_origin,
-                             CellLimits(width, height));
+  const MapLimits map_limits(resolution, grid_max, CellLimits(width, height));
 
   auto probability_grid = std::make_shared<ProbabilityGrid>(
       map_limits, correspondence_cost_cells, nullptr);
 
-  // {
-  //   cv::Mat image(height, width, CV_8UC1);
-  //   for (int y = 0; y < height; ++y) {
-  //     for (int x = 0; x < width; ++x) {
-  //       const int flat_index = y * width + x;
-  //       const double distance = distance_field[flat_index];
-  //       const float probability = std::exp(-(distance * distance) / 25.0);
-  //       const uchar pixel_value = static_cast<uchar>(
-  //           std::clamp((1.0f - probability) * 255.0f, 0.0f, 255.0f));
-  //       image.at<uchar>(height - 1 - y, x) = pixel_value;
-  //     }
-  //   }
+  {
+    cv::Mat image(height, width, CV_8UC1);
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        const int flat_index = y * width + x;
+        const double distance = distance_field[flat_index];
+        const float probability = std::exp(-(distance * distance) / 25.0);
+        const uchar pixel_value = static_cast<uchar>(
+            std::clamp((1.0f - probability) * 255.0f, 0.0f, 255.0f));
+        image.at<uchar>(height - 1 - y, x) = pixel_value;
+      }
+    }
 
-  //   cv::imwrite("/home/linjs/图片/correspondence_cost_cells.png", image);
-  // }
+    cv::imwrite("/home/linjs/图片/correspondence_cost_cells.png", image);
+  }
 
   probability_grid->VisualizeGrid();
 
