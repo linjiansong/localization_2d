@@ -85,9 +85,19 @@ void Localization::GlobalLocalization(const sensor::LaserDataPtr& laser_data) {
                               transform::Rigid3d::Identity());
 }
 
-void Localization::Relocalization(const sensor::LaserDataPtr& laser_data) {
-  // CHECK_NOTNULL(fast_correlative_scan_matcher_);
-  return;
+void Localization::InitialLocalization(const sensor::LaserDataPtr& laser_data) {
+  CHECK_NOTNULL(pose_graph_);
+  localization_status_ = LocalizationStatus::kRoaming;
+  pose_graph_->Reset();
+
+  pose_graph_->AddLocalMatchConstraint(
+      laser_data->timestamp(), ConvertPoint(laser_data->hitting_points()),
+      initial_pose_);
+
+  local_map_builder_ = std::make_shared<LocalMapBuilder>();
+  pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
+  pose_extrapolator_->AddPose(laser_data->timestamp(),
+                              transform::Rigid3d::Identity());
 }
 
 void Localization::Track(const sensor::LaserDataPtr& laser_data) {
@@ -163,6 +173,7 @@ float Localization::CalculateMatchScore(
 void Localization::EvaluateLocalizationStatus(
     const sensor::LaserDataPtr& laser_data) {
   const float score = CalculateMatchScore(laser_data);
+  std::unique_lock<std::mutex> lock(localization_status_mutex_);
   if (score > 0.3) {
     if (localization_status_ == LocalizationStatus::kSuccess) {
       return;
@@ -188,8 +199,10 @@ void Localization::AddLaserData(const sensor::LaserDataPtr& laser_data) {
   if (localization_status_ == LocalizationStatus::kUnknown ||
       localization_status_ == LocalizationStatus::kFailed) {
     return;
-  } else if (localization_status_ == LocalizationStatus::kInitialization) {
+  } else if (localization_status_ == LocalizationStatus::kGlobalLocalization) {
     GlobalLocalization(laser_data);
+  } else if (localization_status_ == LocalizationStatus::kInitialLocalization) {
+    InitialLocalization(laser_data);
   } else {
     // const auto t0 = std::chrono::steady_clock::now();
     Track(laser_data);
@@ -217,9 +230,15 @@ void Localization::AddGridMap(
   pose_graph_->Init();
 }
 
-void Localization::AddInitialPose(const Eigen::Matrix4d& initial_pose) {
-  // initial_pose_ = initial_pose; // Todo
-  localization_status_ = LocalizationStatus::kInitialization;
+void Localization::AddInitialPose(const transform::Rigid2d& initial_pose) {
+  initial_pose_ = initial_pose;
+  std::unique_lock<std::mutex> lock(localization_status_mutex_);
+  localization_status_ = LocalizationStatus::kInitialLocalization;
+}
+
+void Localization::RequestGlobalLocalization() {
+  std::unique_lock<std::mutex> lock(localization_status_mutex_);
+  localization_status_ = LocalizationStatus::kGlobalLocalization;
 }
 
 void Localization::AddImuData(const sensor::ImuDataPtr& imu_data) {

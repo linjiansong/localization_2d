@@ -248,9 +248,18 @@ void LocalizationNode::HandleImuMessage(
 void LocalizationNode::HandleInitialposeMessage(
     const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {
   LOG(INFO) << "Receive initial pose";
+  // const transform::Rigid2d rigid_pose = transform::Rigid2d(
+  //     Eigen::Vector2d(msg->pose.pose.position.x, msg->pose.pose.position.y),
+  //     tf2::getYaw(msg->pose.pose.orientation));
+
   Eigen::Affine3d affine;
   tf2::fromMsg(msg->pose.pose, affine);
-  const Eigen::Matrix4d rigid_pose = affine.matrix();
+  const Eigen::Matrix4d eigen_pose = affine.matrix();
+  double yaw = std::atan2(eigen_pose(1, 0), eigen_pose(0, 0));
+  const transform::Rigid2d rigid_pose = transform::Rigid2d(
+      Eigen::Vector2d(msg->pose.pose.position.x, msg->pose.pose.position.y),
+      yaw);
+
   locator_->AddInitialPose(rigid_pose);
 }
 

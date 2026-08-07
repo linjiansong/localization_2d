@@ -32,11 +32,11 @@ namespace solex_robot::navigation::localization_2d {
 
 enum class LocalizationStatus {
   kUnknown = 0,
-  kInitialization = 1,
-  kFailed = 2,
-  kSuccess = 3,
-  kRoaming = 4,
-  k
+  kGlobalLocalization = 1,
+  kInitialLocalization = 2,
+  kFailed = 3,
+  kSuccess = 4,
+  kRoaming = 5,
 };
 
 struct State {

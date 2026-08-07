@@ -50,20 +50,17 @@ class Localization {
   void AddOdometryData(const sensor::OdometryDataPtr& odometry_data);
   void AddLaserData(const sensor::LaserDataPtr& laser_data);
   void AddGridMap(std::shared_ptr<ProbabilityGrid> probability_grid);
-  void AddInitialPose(const Eigen::Matrix4d& initial_pose);
+  void AddInitialPose(const transform::Rigid2d& initial_pose);
+  void RequestGlobalLocalization();
   void Init();
 
   const Eigen::Matrix4d GetLatestPose(const double timestamp);
   const ProbabilityGrid* GetLocalMap();
 
  private:
-  std::pair<Eigen::Matrix4d, float> MatchGlobalMap(
-      const std::vector<Eigen::Vector3d>& points,
-      const Eigen::Matrix4d& initial_pose);
-
   void GlobalLocalization(const sensor::LaserDataPtr& laser_data);
 
-  void Relocalization(const sensor::LaserDataPtr& laser_data);
+  void InitialLocalization(const sensor::LaserDataPtr& laser_data);
 
   void Track(const sensor::LaserDataPtr& laser_data);
 
@@ -77,8 +74,10 @@ class Localization {
   std::shared_ptr<PoseExtrapolator> pose_extrapolator_;
   std::shared_ptr<PoseGraph> pose_graph_;
 
-  transform::Rigid2d prev_local_pose_;
+  transform::Rigid2d initial_pose_;
   LocalizationStatus localization_status_ = LocalizationStatus::kUnknown;
+  std::mutex localization_status_mutex_;
+
   double roaming_distance_ = 0.0;
   double roaming_angle_ = 0.0;
 };

@@ -406,6 +406,8 @@ void PoseGraph::OptimizationLoop() {
       ++node_interval_;
       if (candidate_node->constraint_data->constraint_type ==
               ConstraintType::kGlobal ||
+          candidate_node->constraint_data->constraint_type ==
+              ConstraintType::kLocal ||
           node_interval_ > kOptimizeNodeInterval) {
         // 执行全局优化
 
