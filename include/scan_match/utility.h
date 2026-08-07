@@ -291,12 +291,12 @@ class MapLimits {
     // Index values are row major and the top left has Eigen::Array2i::Zero()
     // and contains (centered_max_x, centered_max_y). We need to flip and
     // rotate.
-    // return Eigen::Array2i(
-    //     std::lround((max_.x() - point.x()) / resolution_ - 0.5),
-    //     std::lround((max_.y() - point.y()) / resolution_ - 0.5));
     return Eigen::Array2i(
-        std::lround((max_.y() - point.y()) / resolution_ - 0.5),
-        std::lround((max_.x() - point.x()) / resolution_ - 0.5));
+        std::lround((max_.x() - point.x()) / resolution_ - 0.5),
+        std::lround((max_.y() - point.y()) / resolution_ - 0.5));
+    // return Eigen::Array2i(
+    //     std::lround((max_.y() - point.y()) / resolution_ - 0.5),
+    //     std::lround((max_.x() - point.x()) / resolution_ - 0.5));
   }
 
   // Returns true if the ProbabilityGrid contains 'cell_index'.

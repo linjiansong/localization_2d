@@ -76,11 +76,8 @@ std::unique_ptr<ProbabilityGrid> ProbabilityGrid::ComputeCroppedGrid() const {
   CellLimits cell_limits;
   ComputeCroppedLimits(&offset, &cell_limits);
   const double resolution = map_limits_.resolution();
-  // const Eigen::Vector2d max =
-  //     map_limits_.max() - resolution * Eigen::Vector2d(offset.x(),
-  //     offset.y());
   const Eigen::Vector2d max =
-      map_limits_.max() - resolution * Eigen::Vector2d(offset.y(), offset.x());
+      map_limits_.max() - resolution * Eigen::Vector2d(offset.x(), offset.y());
   std::unique_ptr<ProbabilityGrid> cropped_grid =
       std::make_unique<ProbabilityGrid>(MapLimits(resolution, max, cell_limits),
                                         conversion_tables_);
@@ -108,16 +105,10 @@ void ProbabilityGrid::GrowLimits(const Eigen::Vector2f& point) {
     const CellLimits& cell_limits = map_limits_.cell_limits();
     const int x_offset = cell_limits.num_x_cells / 2;
     const int y_offset = cell_limits.num_y_cells / 2;
-    // const MapLimits new_limits(
-    //     map_limits_.resolution(),
-    //     map_limits_.max() +
-    //         map_limits_.resolution() * Eigen::Vector2d(x_offset, y_offset),
-    //     CellLimits(2 * map_limits_.cell_limits().num_x_cells,
-    //                2 * map_limits_.cell_limits().num_y_cells));
     const MapLimits new_limits(
         map_limits_.resolution(),
         map_limits_.max() +
-            map_limits_.resolution() * Eigen::Vector2d(y_offset, x_offset),
+            map_limits_.resolution() * Eigen::Vector2d(x_offset, y_offset),
         CellLimits(2 * map_limits_.cell_limits().num_x_cells,
                    2 * map_limits_.cell_limits().num_y_cells));
     const int stride = new_limits.cell_limits().num_x_cells;

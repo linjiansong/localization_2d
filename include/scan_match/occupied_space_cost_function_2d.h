@@ -165,9 +165,9 @@ class OccupiedSpaceCostFunction2D {
                                          T(point_cloud_[i].y()), T(1.));
       const Eigen::Matrix<T, 3, 1> world = transform * point;
       interpolator.Evaluate(
-          (map_limits.max().x() - world[0]) / map_limits.resolution() - 0.5 +
-              static_cast<double>(kPadding),
           (map_limits.max().y() - world[1]) / map_limits.resolution() - 0.5 +
+              static_cast<double>(kPadding),
+          (map_limits.max().x() - world[0]) / map_limits.resolution() - 0.5 +
               static_cast<double>(kPadding),
           &residual[i]);
       residual[i] = scaling_factor_ * residual[i];
