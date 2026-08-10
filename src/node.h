@@ -38,6 +38,7 @@
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
+#include "solex_msgs/srv/global_localization.hpp"
 #include "src/localization.h"
 
 namespace solex_robot::navigation::localization_2d {
@@ -54,6 +55,9 @@ class LocalizationNode : public rclcpp::Node {
   void HandleInitialposeMessage(
       const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg);
   void HandleGridMapMessage(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
+  void HandleGlobalLocalizationService(
+      const solex_msgs::srv::GlobalLocalization::Request::SharedPtr request,
+      solex_msgs::srv::GlobalLocalization::Response::SharedPtr response);
 
   void PublishTransform();
   void PublishRobotPose();
@@ -68,6 +72,8 @@ class LocalizationNode : public rclcpp::Node {
       initial_pose_subscriber_;
   rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr
       grid_map_subscriber_;
+  rclcpp::Service<solex_msgs::srv::GlobalLocalization>::SharedPtr
+      global_localization_server_;
 
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;

@@ -18,7 +18,7 @@ def generate_launch_description():
     xacro_file = os.path.join(pkg_path, xacro_file_path)
     robot_description = Command(['xacro ', xacro_file])
 
-    map_file = "/home/solex/maps/test1.yaml"
+    map_file = "/home/linjs/Desktop/data/maps/cartographer.yaml"
 
     return LaunchDescription([
         # 1. 启动 robot_state_publisher 节点（发布机器人 TF 和状态）
@@ -48,13 +48,13 @@ def generate_launch_description():
         ),
 
         # 4. 启动 RViz2
-        Node(
-            package='rviz2',
-            executable='rviz2',
-            name='rviz2',
-            output='screen',
-            parameters=[{'use_sim_time': False}]
-        ),
+        # Node(
+        #     package='rviz2',
+        #     executable='rviz2',
+        #     name='rviz2',
+        #     output='screen',
+        #     parameters=[{'use_sim_time': False}]
+        # ),
 
         # 5. 你的定位节点
         TimerAction(

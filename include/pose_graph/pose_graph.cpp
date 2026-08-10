@@ -492,14 +492,15 @@ void PoseGraph::AddTrackingConstraint(
 
 void PoseGraph::AddLocalMatchConstraint(
     const double timestamp, const std::vector<Eigen::Vector3d>& points,
-    const transform::Rigid2d& initial_pose_estimate) {
+    const transform::Rigid2d& initial_pose_estimate,
+    const transform::Rigid2d& local_pose, float local_pose_score) {
   ConstraintDataPtr constraint_data = std::make_shared<ConstraintData>();
   constraint_data->timestamp = timestamp;
   constraint_data->constraint_type = ConstraintType::kLocal;
   constraint_data->initial_pose_estimate = initial_pose_estimate;
   constraint_data->points = points;
-  constraint_data->local_pose = transform::Rigid2d::Identity();
-  constraint_data->local_pose_score = 1.0;
+  constraint_data->local_pose = local_pose;
+  constraint_data->local_pose_score = local_pose_score;
 
   {
     std::unique_lock<std::mutex> lock(constraint_data_buffer_mutex_);

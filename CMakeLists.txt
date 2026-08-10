@@ -23,6 +23,7 @@ find_package(Ceres REQUIRED)
 find_package(glog REQUIRED)
 find_package(gflags REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(solex_msgs REQUIRED)
 
 # 包含路径（自动引入 ament_target_dependencies 无法处理的第三方库头文件）
 include_directories(
@@ -63,10 +64,11 @@ ament_target_dependencies(localization_2d_node
   tf2_ros
   tf2_eigen
   pcl_conversions
+  solex_msgs
 )
 
-# 【核心修复】：去掉 PRIVATE 关键字！保持和 ament 的签名一致！
 target_link_libraries(localization_2d_node
+  ${cartographer_ros_msgs_TARGETS}
   ${PCL_LIBRARIES}
   Eigen3::Eigen
   ${CERES_LIBRARIES}

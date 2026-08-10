@@ -87,7 +87,9 @@ class PoseGraph {
                              float local_pose_score);
   void AddLocalMatchConstraint(const double timestamp,
                                const std::vector<Eigen::Vector3d>& points,
-                               const transform::Rigid2d& initial_pose_estimate);
+                               const transform::Rigid2d& initial_pose_estimate,
+                               const transform::Rigid2d& local_pose,
+                               float local_pose_score);
   void AddGlobalMatchConstraint(const double timestamp,
                                 const std::vector<Eigen::Vector3d>& points);
 

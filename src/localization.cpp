@@ -73,7 +73,7 @@ Localization::~Localization() { pose_graph_->Finish(); }
 
 void Localization::GlobalLocalization(const sensor::LaserDataPtr& laser_data) {
   CHECK_NOTNULL(pose_graph_);
-  localization_status_ = LocalizationStatus::kRoaming;
+  localization_status_ = LocalizationStatus::kInitialization;
   pose_graph_->Reset();
 
   pose_graph_->AddGlobalMatchConstraint(
@@ -87,12 +87,12 @@ void Localization::GlobalLocalization(const sensor::LaserDataPtr& laser_data) {
 
 void Localization::InitialLocalization(const sensor::LaserDataPtr& laser_data) {
   CHECK_NOTNULL(pose_graph_);
-  localization_status_ = LocalizationStatus::kRoaming;
+  localization_status_ = LocalizationStatus::kInitialization;
   pose_graph_->Reset();
 
   pose_graph_->AddLocalMatchConstraint(
       laser_data->timestamp(), ConvertPoint(laser_data->hitting_points()),
-      initial_pose_);
+      initial_pose_, transform::Rigid2d::Identity(), 1.0);
 
   local_map_builder_ = std::make_shared<LocalMapBuilder>();
   pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
@@ -116,21 +116,21 @@ void Localization::Track(const sensor::LaserDataPtr& laser_data) {
     return;
   }
 
+  // if (localization_status_ == LocalizationStatus::kSuccess) {
+  //   pose_graph_->AddTrackingConstraint(
+  //       laser_data->timestamp(), ConvertPoint(laser_data->hitting_points()),
+  //       local_pose_estimate, local_pose_score);
+  // }
+
   if (localization_status_ == LocalizationStatus::kSuccess) {
     pose_graph_->AddTrackingConstraint(
         laser_data->timestamp(), ConvertPoint(laser_data->hitting_points()),
         local_pose_estimate, local_pose_score);
+  } else if (localization_status_ == LocalizationStatus::kRoaming) {
+    pose_graph_->AddTrackingConstraint(
+        laser_data->timestamp(), ConvertPoint(laser_data->hitting_points()),
+        local_pose_estimate, local_pose_score);
   }
-
-  // if (localization_status_ == LocalizationStatus::kSuccess) {
-  //   pose_graph_->AddTrackingConstraint(laser_data->timestamp(),
-  //                                   ConvertPoint(laser_data->hitting_points()),
-  //                                   local_pose_estimate, local_pose_score);
-  // } else if (localization_status_ == LocalizationStatus::kRoaming) {
-  //   pose_graph_->AddTrackingConstraint(laser_data->timestamp(),
-  //                                   ConvertPoint(laser_data->hitting_points()),
-  //                                   local_pose_estimate, local_pose_score);
-  // }
 }
 
 float Localization::CalculateMatchScore(
@@ -201,7 +201,7 @@ void Localization::AddLaserData(const sensor::LaserDataPtr& laser_data) {
     return;
   } else if (localization_status_ == LocalizationStatus::kGlobalLocalization) {
     GlobalLocalization(laser_data);
-  } else if (localization_status_ == LocalizationStatus::kInitialLocalization) {
+  } else if (localization_status_ == LocalizationStatus::kLocalLocalization) {
     InitialLocalization(laser_data);
   } else {
     // const auto t0 = std::chrono::steady_clock::now();
@@ -233,7 +233,7 @@ void Localization::AddGridMap(
 void Localization::AddInitialPose(const transform::Rigid2d& initial_pose) {
   initial_pose_ = initial_pose;
   std::unique_lock<std::mutex> lock(localization_status_mutex_);
-  localization_status_ = LocalizationStatus::kInitialLocalization;
+  localization_status_ = LocalizationStatus::kLocalLocalization;
 }
 
 void Localization::RequestGlobalLocalization() {

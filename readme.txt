@@ -10,3 +10,6 @@ gdb --args /home/linjs/catkin_ws/install/localization_2d/lib/localization_2d/loc
 
 (3). 程序发生段错误崩溃时，GDB 会拦截它。此时输入 bt (backtrace) 查看完整的调用栈
 (gdb) bt
+
+2. call global localization
+ros2 service call /global_localization_service solex_msgs/srv/GlobalLocalization "{global_localizaiton_quest: true}"

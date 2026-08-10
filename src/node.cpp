@@ -88,6 +88,12 @@ LocalizationNode::LocalizationNode()
             this->HandleGridMapMessage(msg);
           });
 
+  global_localization_server_ =
+      this->create_service<solex_msgs::srv::GlobalLocalization>(
+          "global_localization_service",
+          std::bind(&LocalizationNode::HandleGlobalLocalizationService, this,
+                    std::placeholders::_1, std::placeholders::_2));
+
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
@@ -147,7 +153,7 @@ void LocalizationNode::HandleScanMessage(
       std::make_shared<sensor::LaserData>(start_time);
   for (size_t index = 0; index < msg->ranges.size(); ++index) {
     const float range = msg->ranges[index];
-    if (range < msg->range_min || range > msg->range_max) {  // Todo
+    if (range < msg->range_min) {
       continue;
     }
 
@@ -165,8 +171,7 @@ void LocalizationNode::HandleScanMessage(
     timed_point->timestamp = start_time + time_offset;
 
     // 过滤超出物理量程的点
-    // if (range > msg->range_max) {
-    if (range > 8.0) {
+    if (range > msg->range_max) {
       laser_data->mutable_missing_points()->emplace_back(timed_point);
     } else {
       laser_data->mutable_hitting_points()->emplace_back(timed_point);
@@ -343,6 +348,18 @@ void LocalizationNode::HandleGridMapMessage(
   locator_->AddGridMap(probability_grid);
 
   LOG(INFO) << "Grid map successfully loaded in locator.";
+}
+
+void LocalizationNode::HandleGlobalLocalizationService(
+    const solex_msgs::srv::GlobalLocalization::Request::SharedPtr request,
+    solex_msgs::srv::GlobalLocalization::Response::SharedPtr response) {
+  if (request->global_localizaiton_quest) {
+    LOG(INFO) << "Request global localization";
+    locator_->RequestGlobalLocalization();
+    response->result = true;
+  } else {
+    response->result = false;
+  }
 }
 
 void LocalizationNode::PublishRobotPose() {

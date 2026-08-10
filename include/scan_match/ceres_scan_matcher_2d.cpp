@@ -64,7 +64,7 @@ void CeresScanMatcher2D::Match(const transform::Rigid2d& initial_pose_estimate,
           nullptr /* loss function */, ceres_pose_estimate);
       break;
       // case GridType::TSDF:
-      //   problem.AddResidualBlock(
+      //   problem.AddResidualBlock(.max()
       //       CreateTSDFMatchCostFunction2D(
       //           kOccupiedSpaceWeight/
       //               std::sqrt(static_cast<double>(point_cloud.size())),
