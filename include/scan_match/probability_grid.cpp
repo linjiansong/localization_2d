@@ -215,33 +215,4 @@ float ProbabilityGrid::GetProbability(const Eigen::Array2i& cell_index) const {
       correspondence_cost_cells_[ToFlatIndex(cell_index)]));
 }
 
-void ProbabilityGrid::VisualizeGrid() {
-  const int width = map_limits_.cell_limits().num_x_cells;
-  const int height = map_limits_.cell_limits().num_y_cells;
-  LOG(INFO) << "width = " << width << ", height = " << height;
-
-  // 创建一个灰度图：Height 行, Width 列
-  cv::Mat image(height, width, CV_8UC1);
-
-  for (int y = 0; y < height; ++y) {
-    for (int x = 0; x < width; ++x) {
-      Eigen::Array2i index(x, y);
-
-      // 获取原始的对应代价 (Correspondence Cost)
-      // 注意：你需要确保可以通过接口获取该值，或者直接访问私有成员
-      // 这里假设你添加了一个公开接口或者在类内调用
-      const float probability = GetProbability(index);
-      // LOG(INFO) << "index = (" << x << ", " << y << "), probability = " <<
-      // probability;
-
-      // 将 0.0-1.0 的 Cost 映射到 0-255 的灰度值
-      // 通常：0.0 (空闲) -> 255 (白色), 1.0 (障碍物) -> 0 (黑色)
-      image.at<uchar>(y, x) = static_cast<uchar>((1.0f - probability) * 255.0f);
-    }
-  }
-
-  cv::imwrite("/home/linjs/图片/grid_map111.png", image);
-  LOG(INFO) << "Save to /home/linjs/图片/grid_map.png";
-}
-
 }  // namespace solex_robot::navigation::localization_2d

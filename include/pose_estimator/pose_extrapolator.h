@@ -78,8 +78,11 @@ class PoseExtrapolator {
   Eigen::Vector3d angular_velocity_from_poses_ = Eigen::Vector3d::Zero();
 
   std::deque<sensor::ImuData> imu_data_;
+  // 新的pose来了以后才开始积分，有一帧激光的滞后
   std::unique_ptr<ImuTracker> imu_tracker_;
+  // 里程计专用IMU追踪器, 在两次激光扫描之间, 提高局部里程计的精度
   std::unique_ptr<ImuTracker> odometry_imu_tracker_;
+  // 外推预测IMU追踪器, 在两次激光扫描之间, 用IMU数据推算机器人的最新位姿
   std::unique_ptr<ImuTracker> extrapolation_imu_tracker_;
   TimedPose cached_extrapolated_pose_;
 

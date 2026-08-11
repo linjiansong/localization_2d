@@ -98,7 +98,7 @@ LocalizationNode::LocalizationNode()
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
   pose_publisher_ =
-      this->create_publisher<geometry_msgs::msg::PoseStamped>("robot_pose", 20);
+      this->create_publisher<geometry_msgs::msg::PoseStamped>("robot_pose", 50);
 
   local_map_publisher_ =
       this->create_publisher<nav_msgs::msg::OccupancyGrid>("local_map", 1);
@@ -106,14 +106,14 @@ LocalizationNode::LocalizationNode()
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
   // 创建定时器，50Hz 发布
-  timer_ = this->create_wall_timer(std::chrono::milliseconds(50), [this]() {
+  timer_ = this->create_wall_timer(std::chrono::milliseconds(20), [this]() {
     this->PublishTransform();
     this->PublishRobotPose();
   });
 
-  local_map_timer_ = this->create_wall_timer(
-      std::chrono::milliseconds(1000),
-      std::bind(&LocalizationNode::PublishLocalMap, this));
+  // local_map_timer_ = this->create_wall_timer(
+  //     std::chrono::milliseconds(1000),
+  //     std::bind(&LocalizationNode::PublishLocalMap, this));
 
   LOG(INFO) << "Sensor Subscriber Node has been started.";
 }
@@ -121,7 +121,6 @@ LocalizationNode::LocalizationNode()
 void LocalizationNode::HandleScanMessage(
     const sensor_msgs::msg::LaserScan::SharedPtr msg) {
   CHECK_NOTNULL(msg);
-
   std::unique_lock<std::mutex> lock(mutex_);
 
   static Eigen::Isometry3d laser_to_base_transform =
@@ -204,7 +203,6 @@ void LocalizationNode::HandleOdometryMessage(
 void LocalizationNode::HandleImuMessage(
     const sensor_msgs::msg::Imu::SharedPtr msg) {
   CHECK_NOTNULL(msg);
-  return;
   std::unique_lock<std::mutex> lock(mutex_);
 
   // LOG(INFO) << "delta time = " << this->now().seconds() -
@@ -327,23 +325,21 @@ void LocalizationNode::HandleGridMapMessage(
   auto probability_grid = std::make_shared<ProbabilityGrid>(
       map_limits, correspondence_cost_cells, nullptr);
 
-  {
-    cv::Mat image(height, width, CV_8UC1);
-    for (int y = 0; y < height; ++y) {
-      for (int x = 0; x < width; ++x) {
-        const int flat_index = y * width + x;
-        const double distance = distance_field[flat_index];
-        const float probability = std::exp(-(distance * distance) / 25.0);
-        const uchar pixel_value = static_cast<uchar>(
-            std::clamp((1.0f - probability) * 255.0f, 0.0f, 255.0f));
-        image.at<uchar>(height - 1 - y, x) = pixel_value;
-      }
-    }
+  // {
+  //   cv::Mat image(height, width, CV_8UC1);
+  //   for (int y = 0; y < height; ++y) {
+  //     for (int x = 0; x < width; ++x) {
+  //       const int flat_index = y * width + x;
+  //       const double distance = distance_field[flat_index];
+  //       const float probability = std::exp(-(distance * distance) / 25.0);
+  //       const uchar pixel_value = static_cast<uchar>(
+  //           std::clamp((1.0f - probability) * 255.0f, 0.0f, 255.0f));
+  //       image.at<uchar>(height - 1 - y, x) = pixel_value;
+  //     }
+  //   }
 
-    cv::imwrite("/home/linjs/图片/correspondence_cost_cells.png", image);
-  }
-
-  probability_grid->VisualizeGrid();
+  //   cv::imwrite("/home/linjs/图片/correspondence_cost_cells.png", image);
+  // }
 
   locator_->AddGridMap(probability_grid);
 
@@ -363,6 +359,8 @@ void LocalizationNode::HandleGlobalLocalizationService(
 }
 
 void LocalizationNode::PublishRobotPose() {
+  std::unique_lock<std::mutex> lock(mutex_);
+
   const rclcpp::Time current_time = this->now();
   const Eigen::Matrix4d curr_pose =
       locator_->GetLatestPose(current_time.seconds());
@@ -387,6 +385,8 @@ void LocalizationNode::PublishRobotPose() {
 }
 
 void LocalizationNode::PublishTransform() {
+  std::unique_lock<std::mutex> lock(mutex_);
+
   const rclcpp::Time current_time = this->now();
   const Eigen::Matrix4d curr_pose =
       locator_->GetLatestPose(current_time.seconds());
@@ -443,21 +443,6 @@ void LocalizationNode::PublishLocalMap() {
       const int value = probability > 0.5 ? 100 : 0;
       map_msg->data[flat_index] = value;
     }
-  }
-
-  {
-    cv::Mat image(height, width, CV_8UC3, cv::Scalar(255, 255, 255));
-    for (int y = 0; y < height; ++y) {
-      for (int x = 0; x < width; ++x) {
-        const Eigen::Array2i index(x, y);
-        const double probability = probability_grid->GetProbability(index);
-        // const uint8_t value = 255 * (1.0 - probability);
-        const uint8_t value = 255 * probability;
-        image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
-      }
-    }
-
-    cv::imwrite("/home/linjs/图片/local_map.png", image);
   }
 
   local_map_publisher_->publish(*map_msg);

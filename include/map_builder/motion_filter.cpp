@@ -30,7 +30,7 @@ namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr double kDegreeToRadian = M_PI / 180.0;
 constexpr double kRadianToDegree = 180.0 / M_PI;
-constexpr double kMinTimeInterval = 5.0;  // second
+constexpr double kMinTimeInterval = 10.0;  // second
 constexpr double kMinDistance = 0.2;      // meter
 constexpr double kMinAngle = 5.0;         // degree
 }  // namespace

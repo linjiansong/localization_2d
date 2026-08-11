@@ -157,6 +157,19 @@ void LocalMapBuilder::AddLaserData(const sensor::LaserDataPtr& laser_data,
   //           << pose_estimate->rotation().angle() << "], score = " << *score;
 }
 
+void LocalMapBuilder::AddImuData(const sensor::ImuDataPtr& imu_data) {
+  if (pose_extrapolator_ != nullptr) {
+    pose_extrapolator_->AddImuData(*imu_data);
+  }
+}
+
+void LocalMapBuilder::AddOdometryData(
+    const sensor::OdometryDataPtr& odometry_data) {
+  if (pose_extrapolator_ != nullptr) {
+    pose_extrapolator_->AddOdometryData(*odometry_data);
+  }
+}
+
 const std::vector<std::shared_ptr<Submap>> LocalMapBuilder::GetLocalMap()
     const {
   if (active_submaps_ == nullptr) {

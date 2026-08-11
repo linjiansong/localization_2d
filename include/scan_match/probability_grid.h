@@ -69,8 +69,6 @@ class ProbabilityGrid {
 
   float GetCorrespondenceCost(const Eigen::Array2i& cell_index) const;
 
-  void VisualizeGrid();
-
   // Returns the limits of this ProbabilityGrid.
   const MapLimits& map_limits() const { return map_limits_; }
 

@@ -49,7 +49,8 @@ class LocalMapBuilder {
   void AddLaserData(const sensor::LaserDataPtr& laser_data,
                     transform::Rigid2d* pose_estimate, float* score,
                     bool* is_keyframe);
-
+  void AddImuData(const sensor::ImuDataPtr& imu_data);
+  void AddOdometryData(const sensor::OdometryDataPtr& odometry_data);
   const std::vector<std::shared_ptr<Submap>> GetLocalMap() const;
 
  private:

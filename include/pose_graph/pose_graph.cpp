@@ -39,7 +39,7 @@ namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr double kDegreeToRadian = M_PI / 180.0;
 
-constexpr int kOptimizeNodeInterval = 1;
+constexpr int kOptimizeNodeInterval = 10;
 constexpr int kMaxNodeBufferLength = 40;
 
 constexpr int kMaxIterationsNum = 50;
@@ -47,8 +47,8 @@ constexpr int kThreadNum = 8;
 
 constexpr std::array<double, 6> kInterFrameWeight = {1.e3, 1.e3, 1.e3,
                                                      1.e2, 1.e2, 1.e2};
-constexpr std::array<double, 6> kFixedPoseWeiht = {1.e3, 1.e3, 1.e3,
-                                                   1.e2, 1.e2, 1.e2};
+constexpr std::array<double, 6> kFixedPoseWeiht = {1.e2, 1.e2, 1.e2,
+                                                   10.0, 10.0, 10.0};
 
 constexpr int kFixedPoseHuberLoss = 20.0;
 constexpr int kMinTrackConstraintScore = 0.3;
@@ -305,8 +305,8 @@ void PoseGraph::GlobalOptimize() {
         optimized_node_->optimized_pose.inverse() *
         optimized_node_->constraint_data->global_pose;
 
-    LOG(INFO) << "delta_pose = " << delta_pose.translation().norm()
-              << ", angle = " << delta_pose.rotation().angle();
+    // LOG(INFO) << "delta_pose = " << delta_pose.translation().norm()
+    //           << ", angle = " << delta_pose.rotation().angle();
   }
 
   // const auto t1 = std::chrono::steady_clock::now();

@@ -60,7 +60,7 @@ class Localization {
  private:
   void GlobalLocalization(const sensor::LaserDataPtr& laser_data);
 
-  void InitialLocalization(const sensor::LaserDataPtr& laser_data);
+  void LocalLocalization(const sensor::LaserDataPtr& laser_data);
 
   void Track(const sensor::LaserDataPtr& laser_data);
 

@@ -56,26 +56,26 @@ FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
       limits_(probability_grid.map_limits()),
       precomputation_grid_stack_(std::make_unique<PrecomputationGridStack2D>(
           probability_grid, options)) {
-  for (int depth = 0; depth < options.branch_and_bound_depth; ++depth) {
-    const PrecomputationGrid2D& precomputation_grid =
-        precomputation_grid_stack_->Get(depth);
-    const CellLimits& wide_limits = precomputation_grid.wide_limits();
-    const std::vector<uint8_t>& cells = precomputation_grid.cells();
+  // for (int depth = 0; depth < options.branch_and_bound_depth; ++depth) {
+  //   const PrecomputationGrid2D& precomputation_grid =
+  //       precomputation_grid_stack_->Get(depth);
+  //   const CellLimits& wide_limits = precomputation_grid.wide_limits();
+  //   const std::vector<uint8_t>& cells = precomputation_grid.cells();
 
-    cv::Mat image(wide_limits.num_y_cells, wide_limits.num_x_cells, CV_8UC1);
-    for (int y = 0; y < wide_limits.num_y_cells; ++y) {
-      for (int x = 0; x < wide_limits.num_x_cells; ++x) {
-        const int flat_index = y * wide_limits.num_x_cells + x;
-        const uint8_t value = cells[flat_index];
-        image.at<uchar>(y, wide_limits.num_x_cells - 1 - x) = 255 - value;
-      }
-    }
+  //   cv::Mat image(wide_limits.num_y_cells, wide_limits.num_x_cells, CV_8UC1);
+  //   for (int y = 0; y < wide_limits.num_y_cells; ++y) {
+  //     for (int x = 0; x < wide_limits.num_x_cells; ++x) {
+  //       const int flat_index = y * wide_limits.num_x_cells + x;
+  //       const uint8_t value = cells[flat_index];
+  //       image.at<uchar>(y, wide_limits.num_x_cells - 1 - x) = 255 - value;
+  //     }
+  //   }
 
-    const std::string image_path =
-        "/home/linjs/图片/multimap_" + std::to_string(depth) + ".png";
-    LOG(INFO) << "image_path = " << image_path;
-    cv::imwrite(image_path, image);
-  }
+  //   const std::string image_path =
+  //       "/home/linjs/图片/multimap_" + std::to_string(depth) + ".png";
+  //   LOG(INFO) << "image_path = " << image_path;
+  //   cv::imwrite(image_path, image);
+  // }
 }
 
 std::vector<DiscreteScan2D> FastCorrelativeScanMatcher2D::DiscretizeScans(
@@ -237,49 +237,47 @@ FastCorrelativeScanMatcher2D::ComputeLowestResolutionCandidates(
       precomputation_grid_stack_->Get(precomputation_grid_stack_->max_depth()),
       discrete_scans, search_parameters, &lowest_resolution_candidates);
 
-  {
-    const auto precomputation_grid = precomputation_grid_stack_->Get(
-        precomputation_grid_stack_->max_depth());
-    const CellLimits& wide_limits = precomputation_grid.wide_limits();
-    const std::vector<uint8_t>& cells = precomputation_grid.cells();
+  // {
+  //   const auto precomputation_grid = precomputation_grid_stack_->Get(
+  //       precomputation_grid_stack_->max_depth());
+  //   const CellLimits& wide_limits = precomputation_grid.wide_limits();
+  //   const std::vector<uint8_t>& cells = precomputation_grid.cells();
 
-    cv::Mat image(wide_limits.num_y_cells, wide_limits.num_x_cells, CV_8UC3);
-    for (int y = 0; y < wide_limits.num_y_cells; ++y) {
-      for (int x = 0; x < wide_limits.num_x_cells; ++x) {
-        const int flat_index = y * wide_limits.num_x_cells + x;
-        const uint8_t value = 255 - cells[flat_index];
-        image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
-      }
-    }
+  //   cv::Mat image(wide_limits.num_y_cells, wide_limits.num_x_cells, CV_8UC3);
+  //   for (int y = 0; y < wide_limits.num_y_cells; ++y) {
+  //     for (int x = 0; x < wide_limits.num_x_cells; ++x) {
+  //       const int flat_index = y * wide_limits.num_x_cells + x;
+  //       const uint8_t value = 255 - cells[flat_index];
+  //       image.at<cv::Vec3b>(y, x) = cv::Vec3b(value, value, value);
+  //     }
+  //   }
 
-    const Eigen::Vector2d center =
-        limits_.max() - 0.5 * limits_.resolution() *
-                            Eigen::Vector2d(limits_.cell_limits().num_x_cells,
-                                            limits_.cell_limits().num_y_cells);
-    LOG(INFO) << "center = " << center.x() << ", " << center.y();
+  //   const Eigen::Vector2d center =
+  //       limits_.max() - 0.5 * limits_.resolution() *
+  //                           Eigen::Vector2d(limits_.cell_limits().num_x_cells,
+  //                                           limits_.cell_limits().num_y_cells);
+  //   LOG(INFO) << "center = " << center.x() << ", " << center.y();
 
-    const Eigen::Array2i origin_index =
-        limits_.GetCellIndex(center.cast<float>());
-    LOG(INFO) << "origin_index = " << origin_index.x() << ", "
-              << origin_index.y();
-    for (const Candidate2D& candidate : lowest_resolution_candidates) {
-      Eigen::Array2i index = origin_index;
-      index.x() += candidate.x_index_offset;
-      index.y() += candidate.y_index_offset;
-      // LOG(INFO) << "index = " << index.x() << ", " << index.y();
-      if (limits_.Contains(index)) {
-        image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 255, 0);
-      } else {
-        // LOG(INFO) << "index = " << index.x() << ", " << index.y();
-        continue;
-      }
-    }
+  //   const Eigen::Array2i origin_index =
+  //       limits_.GetCellIndex(center.cast<float>());
+  //   LOG(INFO) << "origin_index = " << origin_index.x() << ", "
+  //             << origin_index.y();
+  //   for (const Candidate2D& candidate : lowest_resolution_candidates) {
+  //     Eigen::Array2i index = origin_index;
+  //     index.x() += candidate.x_index_offset;
+  //     index.y() += candidate.y_index_offset;
+  //     // LOG(INFO) << "index = " << index.x() << ", " << index.y();
+  //     if (limits_.Contains(index)) {
+  //       image.at<cv::Vec3b>(index.y(), index.x()) = cv::Vec3b(0, 255, 0);
+  //     } else {
+  //       // LOG(INFO) << "index = " << index.x() << ", " << index.y();
+  //       continue;
+  //     }
+  //   }
 
-    cv::imwrite("/home/linjs/图片/lowest_resolution_candidates.png", image);
-  }
+  //   cv::imwrite("/home/linjs/图片/lowest_resolution_candidates.png", image);
+  // }
 
-  // LOG(INFO) << "lowest_resolution_candidates = "
-  //           << lowest_resolution_candidates.size();
   return lowest_resolution_candidates;
 }
 
