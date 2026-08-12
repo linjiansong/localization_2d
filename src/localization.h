@@ -61,6 +61,7 @@ class Localization {
 
   const Eigen::Matrix4d GetLatestPose(const double timestamp);
   const ProbabilityGrid* GetLocalMap();
+  LocalizationStatus GetLocalizationStatus();
 
  private:
   void GlobalLocalization(const sensor::LaserDataPtr& laser_data);

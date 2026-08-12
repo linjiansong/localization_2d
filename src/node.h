@@ -36,11 +36,12 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <tf2_ros/transform_broadcaster.hpp>
 
+#include "common/options.h"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
+#include "solex_msgs/msg/localization_status.hpp"
 #include "solex_msgs/srv/global_localization.hpp"
 #include "src/localization.h"
-#include "common/options.h"
 
 namespace solex_robot::navigation::localization_2d {
 class LocalizationNode : public rclcpp::Node {
@@ -64,6 +65,7 @@ class LocalizationNode : public rclcpp::Node {
 
   void PublishTransform();
   void PublishRobotPose();
+  void PublishLocalizationStatus();
   void PublishLocalMap();
 
  private:
@@ -86,6 +88,8 @@ class LocalizationNode : public rclcpp::Node {
 
   // publisher
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_publisher_;
+  rclcpp::Publisher<solex_msgs::msg::LocalizationStatus>::SharedPtr
+      localization_status_publisher_;
   rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr
       local_map_publisher_;
 

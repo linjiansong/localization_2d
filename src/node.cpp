@@ -118,8 +118,9 @@ LocalizationNode::LocalizationNode()
   pose_publisher_ =
       this->create_publisher<geometry_msgs::msg::PoseStamped>("robot_pose", 50);
 
-  local_map_publisher_ =
-      this->create_publisher<nav_msgs::msg::OccupancyGrid>("local_map", 1);
+  localization_status_publisher_ =
+      this->create_publisher<solex_msgs::msg::LocalizationStatus>(
+          "localization_status", 50);
 
   tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
@@ -127,8 +128,11 @@ LocalizationNode::LocalizationNode()
   timer_ = this->create_wall_timer(std::chrono::milliseconds(20), [this]() {
     this->PublishTransform();
     this->PublishRobotPose();
+    this->PublishLocalizationStatus();
   });
 
+  local_map_publisher_ =
+      this->create_publisher<nav_msgs::msg::OccupancyGrid>("local_map", 1);
   // local_map_timer_ = this->create_wall_timer(
   //     std::chrono::milliseconds(1000),
   //     std::bind(&LocalizationNode::PublishLocalMap, this));
@@ -197,9 +201,9 @@ options::LocalizationOptions LocalizationNode::LoadOptions() {
   options.pose_graph_options.min_relocalization_score =
       (float)this->declare_parameter(
           prefix + std::string("min_relocalization_score"), 0.6);
-  options.pose_graph_options.min_tracking_score = 
-      (float)this->declare_parameter(
-          prefix + std::string("min_tracking_score"), 0.5);
+  options.pose_graph_options.min_tracking_score =
+      (float)this->declare_parameter(prefix + std::string("min_tracking_score"),
+                                     0.5);
 
   // Real Time Correlative Scan Match
   prefix = "pose_graph.real_time_correlative_scan_matcher.";
@@ -506,6 +510,12 @@ void LocalizationNode::PublishRobotPose() {
   pose_msg.pose.orientation.w = q.w();
 
   pose_publisher_->publish(pose_msg);
+}
+
+void LocalizationNode::PublishLocalizationStatus() {
+  auto message = solex_msgs::msg::LocalizationStatus();
+  message.status = static_cast<uint8_t>(locator_->GetLocalizationStatus());
+  localization_status_publisher_->publish(message);
 }
 
 void LocalizationNode::PublishTransform() {

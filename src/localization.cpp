@@ -229,6 +229,11 @@ void Localization::AddLaserData(const sensor::LaserDataPtr& laser_data) {
 void Localization::AddGridMap(
     std::shared_ptr<ProbabilityGrid> probability_grid) {
   CHECK_NOTNULL(probability_grid);
+  {
+    std::unique_lock<std::mutex> lock(localization_status_mutex_);
+    localization_status_ = LocalizationStatus::kUnknown;
+  }
+
   probability_grid_ = probability_grid;
 
   if (pose_graph_ != nullptr) {
@@ -238,6 +243,9 @@ void Localization::AddGridMap(
   pose_graph_ =
       std::make_shared<PoseGraph>(pose_graph_options_, probability_grid);
   pose_graph_->Init();
+
+  std::unique_lock<std::mutex> lock(localization_status_mutex_);
+  localization_status_ = LocalizationStatus::kFailed;
 }
 
 void Localization::AddInitialPose(const transform::Rigid2d& initial_pose) {
@@ -304,6 +312,11 @@ const ProbabilityGrid* Localization::GetLocalMap() {
   }
 
   return submaps.front()->probability_grid();
+}
+
+LocalizationStatus Localization::GetLocalizationStatus() {
+  std::unique_lock<std::mutex> lock(localization_status_mutex_);
+  return localization_status_;
 }
 
 }  // namespace solex_robot::navigation::localization_2d
