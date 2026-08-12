@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "Eigen/Core"
+#include "common/options.h"
 #include "common/rigid_transform.h"
 #include "include/scan_match/probability_grid.h"
 #include "include/scan_match/utility.h"
@@ -38,7 +39,7 @@ namespace solex_robot::navigation::localization_2d {
 class RealTimeCorrelativeScanMatcher2D {
  public:
   explicit RealTimeCorrelativeScanMatcher2D(
-      const RealTimeCorrelativeScanMatcherOptions2D& options)
+      const options::RealTimeCorrelativeScanMatcherOptions& options)
       : options_(options) {}
 
   RealTimeCorrelativeScanMatcher2D(const RealTimeCorrelativeScanMatcher2D&) =
@@ -79,7 +80,7 @@ class RealTimeCorrelativeScanMatcher2D {
       const SearchParameters& search_parameters) const;
 
  private:
-  const RealTimeCorrelativeScanMatcherOptions2D options_;
+  const options::RealTimeCorrelativeScanMatcherOptions options_;
 };
 
 }  // namespace solex_robot::navigation::localization_2d

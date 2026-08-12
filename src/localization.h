@@ -33,6 +33,7 @@
 #include "Eigen/Core"
 #include "Eigen/Dense"
 #include "common/base_type.h"
+#include "common/options.h"
 #include "common/sensor_type.h"
 #include "include/map_builder/local_map_builder.h"
 #include "include/pose_estimator/pose_extrapolator.h"
@@ -43,7 +44,11 @@ namespace solex_robot::navigation::localization_2d {
 
 class Localization {
  public:
-  Localization() = default;
+  Localization(const options::LocalMapBuilderOptions& local_map_builder_options,
+               const options::PoseGraphOptions& pose_graph_options)
+      : local_map_builder_options_(local_map_builder_options),
+        pose_graph_options_(pose_graph_options) {}
+
   ~Localization();
 
   void AddImuData(const sensor::ImuDataPtr& imu_data);
@@ -69,6 +74,8 @@ class Localization {
   void EvaluateLocalizationStatus(const sensor::LaserDataPtr& laser_data);
 
  private:
+  const options::LocalMapBuilderOptions local_map_builder_options_;
+  const options::PoseGraphOptions pose_graph_options_;
   std::shared_ptr<ProbabilityGrid> probability_grid_;
   std::shared_ptr<LocalMapBuilder> local_map_builder_;
   std::shared_ptr<PoseExtrapolator> pose_extrapolator_;

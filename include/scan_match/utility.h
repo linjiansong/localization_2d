@@ -105,35 +105,6 @@ inline float Odds(float probability) {
 
 typedef std::vector<Eigen::Array2i> DiscreteScan2D;
 
-struct FastCorrelativeScanMatcherOptions2D {
-  // 线性搜索窗口的大小（以米为单位）。
-  // 这个参数决定了在多大的范围内进行平移搜索。
-  double linear_search_window = 0.0;
-
-  // 角度搜索窗口的大小（以弧度为单位）。
-  // 这个参数决定了在多大的范围内进行旋转搜索。
-  double angular_search_window = 0.0;
-
-  // 分支定界算法（Branch-and-Bound）所使用的查找表层数。
-  // Cartographer 会为地图构建多分辨率的查找表（类似图像金字塔），
-  // 该值决定了层级深度。层数越多，搜索范围越广，计算量也越大。
-  int32_t branch_and_bound_depth = 0;
-};
-
-struct RealTimeCorrelativeScanMatcherOptions2D {
-  // 线性搜索窗口的大小（单位：米），用于限定在哪个范围内寻找最佳平移对齐位置
-  double linear_search_window = 0.0;
-
-  // 角度搜索窗口的大小（单位：弧度），用于限定在哪个范围内寻找最佳旋转对齐角度
-  double angular_search_window = 0.0;
-
-  // 平移变化惩罚权重（用于对偏离初始估计的平移施加惩罚得分）
-  double translation_delta_cost_weight = 0.0;
-
-  // 旋转变化惩罚权重（用于对偏离初始估计的旋转施加惩罚得分）
-  double rotation_delta_cost_weight = 0.0;
-};
-
 struct CellLimits {
   CellLimits() = default;
   CellLimits(int init_num_x_cells, int init_num_y_cells)

@@ -34,20 +34,19 @@ namespace {
 constexpr double kDegreeToRadian = M_PI / 180.0;
 }  // namespace
 
-LocalMapBuilder::LocalMapBuilder()
-    : motion_filter_(std::make_unique<MotionFilter>()),
+LocalMapBuilder::LocalMapBuilder(const options::LocalMapBuilderOptions options)
+    : motion_filter_(
+          std::make_unique<MotionFilter>(options.motion_filter_options)),
       pose_extrapolator_(std::make_unique<PoseExtrapolator>()),
       ndt_aligner_(std::make_unique<NDTAligner>()),
       icp_aligner_(std::make_unique<ICPAligner>()),
       active_submaps_(std::make_unique<ActiveSubmap>()),
       ceres_scan_matcher_(std::make_unique<CeresScanMatcher2D>()) {
-  RealTimeCorrelativeScanMatcherOptions2D real_time_options;
-  real_time_options.linear_search_window = 0.1;
-  real_time_options.angular_search_window = 5.0 * kDegreeToRadian;
-  real_time_options.translation_delta_cost_weight = 10;
-  real_time_options.rotation_delta_cost_weight = 0.1;
-  real_time_correlative_scan_matcher_ =
-      std::make_unique<RealTimeCorrelativeScanMatcher2D>(real_time_options);
+  if (options.use_real_time_correlative_scan_match) {
+    real_time_correlative_scan_matcher_ =
+        std::make_unique<RealTimeCorrelativeScanMatcher2D>(
+            options.real_time_correlative_scan_matcher_options);
+  }
 }
 
 // void LocalMapBuilder::AddLaserData(const sensor::LaserDataPtr& laser_data,
@@ -126,11 +125,13 @@ void LocalMapBuilder::AddLaserData(const sensor::LaserDataPtr& laser_data,
       pose_extrapolator_->ExtrapolatePose(laser_data->timestamp()));
 
   transform::Rigid2d real_time_pose_estimate = initial_pose;
-  float real_time_score = 0.0;
-  real_time_correlative_scan_matcher_->Match(
-      initial_pose, point_cloud, *probability_grid, &real_time_pose_estimate,
-      &real_time_score);
-  // LOG(INFO) << "real_time_score = " << real_time_score;
+  if (real_time_correlative_scan_matcher_ != nullptr) {
+    float real_time_score = 0.0;
+    real_time_correlative_scan_matcher_->Match(
+        initial_pose, point_cloud, *probability_grid, &real_time_pose_estimate,
+        &real_time_score);
+    // LOG(INFO) << "real_time_score = " << real_time_score;
+  }
 
   transform::Rigid2d ceres_pose_estimate;
   float ceres_match_score;
@@ -152,7 +153,8 @@ void LocalMapBuilder::AddLaserData(const sensor::LaserDataPtr& laser_data,
   *is_keyframe = true;
   laser_data->set_pose(transform::Embed3D(*pose_estimate));
   active_submaps_->InsertLaserData(laser_data);
-  // LOG(INFO) << "pose_estimate = [" << pose_estimate->translation().x() << ", "
+  // LOG(INFO) << "pose_estimate = [" << pose_estimate->translation().x() << ",
+  // "
   //           << pose_estimate->translation().x() << ", "
   //           << pose_estimate->rotation().angle() << "], score = " << *score;
 }

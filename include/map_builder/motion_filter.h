@@ -24,13 +24,14 @@
 
 #include <limits>
 
+#include "common/options.h"
 #include "common/rigid_transform.h"
 
 namespace solex_robot::navigation::localization_2d {
 
 class MotionFilter {
  public:
-  MotionFilter() = default;
+  MotionFilter(const options::MotionFilterOptions& options) : options_(options) {}
 
   // If the accumulated motion (linear, rotational, or time) is above the
   // threshold, returns false. Otherwise the relative motion is accumulated and
@@ -38,6 +39,7 @@ class MotionFilter {
   bool IsSimilar(double time, const transform::Rigid3d& pose);
 
  private:
+  const options::MotionFilterOptions options_;
   int num_total_ = 0;
   int num_different_ = 0;
   double last_time_ = 0.0;

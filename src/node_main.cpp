@@ -22,14 +22,15 @@
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-#include "gflags/gflags.h"
 #include <glog/logging.h>
-#include "src/node.h"
+
+#include "gflags/gflags.h"
 #include "rclcpp/rclcpp.hpp"
+#include "src/node.h"
 
 namespace solex_robot::navigation::localization_2d {
 
-void  Run() {
+void Run() {
   // 1. 直接创建你的自定义节点实例
   // 确保 LocalizationNode 继承了 rclcpp::Node
   auto node = std::make_shared<LocalizationNode>();
@@ -45,7 +46,7 @@ int main(int argc, char** argv) {
   rclcpp::init(argc, argv);
 
   // Log同时输出到终端和文件
-  FLAGS_alsologtostderr = true; 
+  FLAGS_alsologtostderr = true;
 
   // 初始化 gflags
   google::AllowCommandLineReparsing();

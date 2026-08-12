@@ -79,7 +79,8 @@ void Localization::GlobalLocalization(const sensor::LaserDataPtr& laser_data) {
   pose_graph_->AddGlobalMatchConstraint(
       laser_data->timestamp(), ConvertPoint(laser_data->hitting_points()));
 
-  local_map_builder_ = std::make_shared<LocalMapBuilder>();
+  local_map_builder_ =
+      std::make_shared<LocalMapBuilder>(local_map_builder_options_);
   pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
 
   transform::Rigid2d local_pose_estimate;
@@ -100,7 +101,8 @@ void Localization::LocalLocalization(const sensor::LaserDataPtr& laser_data) {
       laser_data->timestamp(), ConvertPoint(laser_data->hitting_points()),
       initial_pose_, transform::Rigid2d::Identity(), 1.0);
 
-  local_map_builder_ = std::make_shared<LocalMapBuilder>();
+  local_map_builder_ =
+      std::make_shared<LocalMapBuilder>(local_map_builder_options_);
   pose_extrapolator_ = std::make_shared<PoseExtrapolator>();
 
   transform::Rigid2d local_pose_estimate;
@@ -233,7 +235,8 @@ void Localization::AddGridMap(
     pose_graph_->Finish();
   }
 
-  pose_graph_ = std::make_shared<PoseGraph>(probability_grid);
+  pose_graph_ =
+      std::make_shared<PoseGraph>(pose_graph_options_, probability_grid);
   pose_graph_->Init();
 }
 

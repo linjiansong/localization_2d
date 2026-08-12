@@ -121,9 +121,6 @@ std::vector<float> ComputeDistanceField(
     }
   }
 
-  std::cout << "cell_datas = " << cell_datas.size() << std::endl;
-  std::cout << "occupied_cells = " << occupied_cells.size() << std::endl;
-
   std::vector<float> distance_field;
   distance_field.reserve(cell_datas.size());
   for (const auto& cell_data : cell_datas) {

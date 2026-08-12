@@ -19,6 +19,7 @@ def generate_launch_description():
     robot_description = Command(['xacro ', xacro_file])
 
     map_file = "/home/solex/maps/test1.yaml"
+    options_file = "/home/linjs/catkin_ws/src/localization_2d/launch/options.yaml"
 
     return LaunchDescription([
         # 1. 启动 robot_state_publisher 节点（发布机器人 TF 和状态）
@@ -65,7 +66,7 @@ def generate_launch_description():
                     executable='localization_2d_node',
                     name='localization_2d_node',
                     output='screen',
-                    parameters=[{'use_sim_time': False}]
+                    parameters=[options_file, {'use_sim_time': False}]
                 )
             ]
         )

@@ -34,6 +34,7 @@
 
 #include "Eigen/Core"
 #include "common/base_type.h"
+#include "common/options.h"
 #include "common/rigid_transform.h"
 #include "include/scan_match/ceres_scan_matcher_2d.h"
 #include "include/scan_match/fast_correlative_scan_matcher_2d.h"
@@ -43,7 +44,6 @@
 namespace solex_robot::navigation::localization_2d {
 
 enum class ConstraintType { kUnknown = 0, kGlobal = 1, kLocal = 2, kTrack = 3 };
-
 using PosePtr = std::shared_ptr<double[]>;
 
 struct ConstraintData {
@@ -65,15 +65,11 @@ struct Node {
 };
 using NodePtr = std::shared_ptr<Node>;
 
-// using ConstraintCallback = std::function<void(
-//     double time, transform::Rigid3d, std::unique_ptr<const
-//     InsertionResult>)>;
-
-// Align scans with an existing map using Ceres.
 class PoseGraph {
  public:
-  explicit PoseGraph(const std::shared_ptr<ProbabilityGrid> probability_grid)
-      : probability_grid_(probability_grid) {}
+  explicit PoseGraph(const options::PoseGraphOptions& options,
+                     const std::shared_ptr<ProbabilityGrid> probability_grid)
+      : options_(options), probability_grid_(probability_grid) {}
 
   PoseGraph() = delete;
 
@@ -114,7 +110,9 @@ class PoseGraph {
   void ConstraintLoop();
 
  private:
-  std::shared_ptr<ProbabilityGrid> probability_grid_;
+  const options::PoseGraphOptions options_;
+  const std::shared_ptr<ProbabilityGrid> probability_grid_;
+
   std::shared_ptr<CeresScanMatcher2D> ceres_scan_matcher_;
   std::shared_ptr<RealTimeCorrelativeScanMatcher2D>
       real_time_correlative_scan_matcher_;

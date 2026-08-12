@@ -27,13 +27,6 @@
 #include "glog/logging.h"
 
 namespace solex_robot::navigation::localization_2d {
-namespace {
-constexpr double kDegreeToRadian = M_PI / 180.0;
-constexpr double kRadianToDegree = 180.0 / M_PI;
-constexpr double kMinTimeInterval = 10.0;  // second
-constexpr double kMinDistance = 0.2;      // meter
-constexpr double kMinAngle = 5.0;         // degree
-}  // namespace
 
 bool MotionFilter::IsSimilar(const double time,
                              const transform::Rigid3d& pose) {
@@ -41,9 +34,11 @@ bool MotionFilter::IsSimilar(const double time,
       << "Motion filter reduced the number of nodes to "
       << 100. * num_different_ / num_total_ << "%.";
   ++num_total_;
-  if (num_total_ > 1 && time - last_time_ <= kMinTimeInterval &&
-      (pose.translation() - last_pose_.translation()).norm() <= kMinDistance &&
-      transform::GetAngle(pose.inverse() * last_pose_) <= kMinAngle) {
+  if (num_total_ > 1 && time - last_time_ <= options_.max_time_seconds &&
+      (pose.translation() - last_pose_.translation()).norm() <=
+          options_.max_distance &&
+      transform::GetAngle(pose.inverse() * last_pose_) <=
+          options_.max_angle) {
     return true;
   }
 

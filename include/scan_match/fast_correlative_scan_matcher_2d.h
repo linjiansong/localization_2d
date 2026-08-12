@@ -30,6 +30,7 @@
 
 #include "Eigen/Core"
 #include "common/base_type.h"
+#include "common/options.h"
 #include "common/rigid_transform.h"
 #include "include/scan_match/precomputation_grid_2d.h"
 #include "include/scan_match/probability_grid.h"
@@ -41,7 +42,7 @@ class PrecomputationGridStack2D {
  public:
   PrecomputationGridStack2D(
       const ProbabilityGrid& probability_grid,
-      const FastCorrelativeScanMatcherOptions2D& options) {
+      const options::FastCorrelativeScanMatcherOptions& options) {
     CHECK_GE(options.branch_and_bound_depth, 1);
     const int max_width = 1 << (options.branch_and_bound_depth - 1);
     precomputation_grids_.reserve(options.branch_and_bound_depth);
@@ -71,7 +72,7 @@ class FastCorrelativeScanMatcher2D {
  public:
   FastCorrelativeScanMatcher2D(
       const ProbabilityGrid& probability_grid,
-      const FastCorrelativeScanMatcherOptions2D& options);
+      const options::FastCorrelativeScanMatcherOptions& options);
   ~FastCorrelativeScanMatcher2D() = default;
 
   FastCorrelativeScanMatcher2D(const FastCorrelativeScanMatcher2D&) = delete;
@@ -132,7 +133,7 @@ class FastCorrelativeScanMatcher2D {
                              const std::vector<Candidate2D>& candidates,
                              int candidate_depth, float min_score) const;
 
-  const FastCorrelativeScanMatcherOptions2D options_;
+  const options::FastCorrelativeScanMatcherOptions options_;
   MapLimits limits_;
   std::unique_ptr<PrecomputationGridStack2D> precomputation_grid_stack_;
 };

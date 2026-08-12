@@ -44,31 +44,49 @@
 namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr double kSecondToNanoSecond = 1.e9;
+constexpr double kDegreeToRadian = M_PI / 180.0;
 }  // namespace
 
 LocalizationNode::LocalizationNode()
     : rclcpp::Node("sensor_subscriber_node"),
-      locator_(std::make_unique<Localization>()) {
+      options_(LoadOptions()),
+      locator_(std::make_unique<Localization>(
+          options_.local_map_builder_options, options_.pose_graph_options)) {
   // 使用 SensorDataQoS，这对于传感器高频数据至关重要
   auto qos = rclcpp::SensorDataQoS();
 
   // 订阅 LaserScan
-  scan_subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-      "/scan", qos, [this](const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-        this->HandleScanMessage(msg);
-      });
+  if (options_.sensor_options.use_laser) {
+    LOG(INFO) << "subscribe laser scan, topic = "
+              << options_.sensor_options.laser_topic;
+    scan_subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+        options_.sensor_options.laser_topic, qos,
+        [this](const sensor_msgs::msg::LaserScan::SharedPtr msg) {
+          this->HandleScanMessage(msg);
+        });
+  }
 
   // 订阅 Odometry
-  odometry_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      "/odom", qos, [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
-        this->HandleOdometryMessage(msg);
-      });
+  if (options_.sensor_options.use_odometry) {
+    LOG(INFO) << "subscribe odometry, topic = "
+              << options_.sensor_options.odometry_topic;
+    odometry_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>(
+        options_.sensor_options.odometry_topic, qos,
+        [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
+          this->HandleOdometryMessage(msg);
+        });
+  }
 
-  // 订阅IMU
-  imu_subscriber_ = this->create_subscription<sensor_msgs::msg::Imu>(
-      "/imu/data", qos, [this](const sensor_msgs::msg::Imu::SharedPtr msg) {
-        this->HandleImuMessage(msg);
-      });
+  // 订阅 IMU
+  if (options_.sensor_options.use_imu) {
+    LOG(INFO) << "subscribe imu data, topic = "
+              << options_.sensor_options.imu_topic;
+    imu_subscriber_ = this->create_subscription<sensor_msgs::msg::Imu>(
+        options_.sensor_options.imu_topic, qos,
+        [this](const sensor_msgs::msg::Imu::SharedPtr msg) {
+          this->HandleImuMessage(msg);
+        });
+  }
 
   // 订阅initialpose
   initial_pose_subscriber_ =
@@ -116,6 +134,113 @@ LocalizationNode::LocalizationNode()
   //     std::bind(&LocalizationNode::PublishLocalMap, this));
 
   LOG(INFO) << "Sensor Subscriber Node has been started.";
+}
+
+options::LocalizationOptions LocalizationNode::LoadOptions() {
+  options::LocalizationOptions options;
+
+  // SensorOptions
+  options.sensor_options.laser_topic =
+      this->declare_parameter("sensors.lidar.topic", "/scan");
+  options.sensor_options.use_laser =
+      this->declare_parameter("sensors.lidar.enabled", true);
+  options.sensor_options.imu_topic =
+      this->declare_parameter("sensors.imu.topic", "/imu/data");
+  options.sensor_options.use_imu =
+      this->declare_parameter("sensors.imu.enabled", true);
+  options.sensor_options.odometry_topic =
+      this->declare_parameter("sensors.odom.topic", "/odom");
+  options.sensor_options.use_odometry =
+      this->declare_parameter("sensors.odom.enabled", true);
+
+  // LocalMapBuilderOptions
+  options.local_map_builder_options.use_real_time_correlative_scan_match =
+      this->declare_parameter(
+          std::string("local_map_builder.use_online_correlative_scan_match"),
+          true);
+  std::string prefix = "local_map_builder.real_time_correlative_scan_matcher.";
+  options.local_map_builder_options.real_time_correlative_scan_matcher_options
+      .linear_search_window = this->declare_parameter(
+      prefix + std::string("linear_search_window"), 0.1);
+  options.local_map_builder_options.real_time_correlative_scan_matcher_options
+      .angular_search_window =
+      this->declare_parameter(prefix + std::string("angular_search_window"),
+                              5.0) *
+      kDegreeToRadian;
+  options.local_map_builder_options.real_time_correlative_scan_matcher_options
+      .translation_delta_cost_weight = this->declare_parameter(
+      prefix + std::string("translation_delta_cost_weight"), 10.0);
+  options.local_map_builder_options.real_time_correlative_scan_matcher_options
+      .rotation_delta_cost_weight = this->declare_parameter(
+      prefix + std::string("rotation_delta_cost_weight"), 0.1);
+
+  // Motion Filter
+  prefix = "local_map_builder.motion_filter.";
+  options.local_map_builder_options.motion_filter_options.max_time_seconds =
+      (float)this->declare_parameter(prefix + std::string("max_time_seconds"),
+                                     5.0);
+  options.local_map_builder_options.motion_filter_options.max_distance =
+      (float)this->declare_parameter(prefix + std::string("max_distance"), 0.2);
+  options.local_map_builder_options.motion_filter_options.max_angle =
+      (float)this->declare_parameter(prefix + std::string("max_angle"), 5.0) *
+      kDegreeToRadian;
+
+  // Pose Graph
+  prefix = "pose_graph.";
+  options.pose_graph_options.optimize_every_nodes =
+      this->declare_parameter(prefix + std::string("optimize_every_nodes"), 10);
+  options.pose_graph_options.max_node_buffer_length = this->declare_parameter(
+      prefix + std::string("max_node_buffer_length"), 40);
+  options.pose_graph_options.min_global_localization_score =
+      (float)this->declare_parameter(
+          prefix + std::string("min_global_localization_score"), 0.8);
+  options.pose_graph_options.min_relocalization_score =
+      (float)this->declare_parameter(
+          prefix + std::string("min_relocalization_score"), 0.6);
+  options.pose_graph_options.min_tracking_score = 
+      (float)this->declare_parameter(
+          prefix + std::string("min_tracking_score"), 0.5);
+
+  // Real Time Correlative Scan Match
+  prefix = "pose_graph.real_time_correlative_scan_matcher.";
+  options.pose_graph_options.real_time_correlative_scan_matcher_options
+      .linear_search_window = this->declare_parameter(
+      prefix + std::string("linear_search_window"), 0.1);
+  options.pose_graph_options.real_time_correlative_scan_matcher_options
+      .angular_search_window =
+      this->declare_parameter(prefix + std::string("angular_search_window"),
+                              5.0) *
+      kDegreeToRadian;
+  options.pose_graph_options.real_time_correlative_scan_matcher_options
+      .translation_delta_cost_weight = this->declare_parameter(
+      prefix + std::string("translation_delta_cost_weight"), 10.0);
+  options.pose_graph_options.real_time_correlative_scan_matcher_options
+      .rotation_delta_cost_weight = this->declare_parameter(
+      prefix + std::string("rotation_delta_cost_weight"), 0.1);
+
+  // Fast Correlative Scan Match
+  prefix = "pose_graph.fast_correlative_scan_matcher.";
+  options.pose_graph_options.fast_correlative_scan_matcher_options
+      .linear_search_window = this->declare_parameter(
+      prefix + std::string("linear_search_window"), 8.0);
+  options.pose_graph_options.fast_correlative_scan_matcher_options
+      .angular_search_window =
+      this->declare_parameter(prefix + std::string("angular_search_window"),
+                              30.0) *
+      kDegreeToRadian;
+  options.pose_graph_options.fast_correlative_scan_matcher_options
+      .branch_and_bound_depth = this->declare_parameter(
+      prefix + std::string("branch_and_bound_depth"), 6);
+
+  LOG(INFO) << "***************** Current Node Parameters *****************";
+  auto all_params = this->get_parameters(this->list_parameters({}, 10).names);
+  for (const auto& param : all_params) {
+    LOG(INFO) << "Name: " << param.get_name()
+              << " | Value: " << param.value_to_string();
+  }
+  LOG(INFO) << "***********************************************************";
+
+  return options;
 }
 
 void LocalizationNode::HandleScanMessage(
@@ -284,7 +409,6 @@ void LocalizationNode::HandleGridMapMessage(
   const double resolution = msg->info.resolution;
   const int width = msg->info.width;
   const int height = msg->info.height;
-  LOG(INFO) << "width = " << width << ", height = " << height;
 
   std::vector<int8_t> occupied_cells;
   occupied_cells.reserve(width * height);

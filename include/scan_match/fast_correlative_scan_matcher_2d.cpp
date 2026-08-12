@@ -51,11 +51,16 @@ std::vector<Eigen::Vector3d> TransformPointCloud(
 
 FastCorrelativeScanMatcher2D::FastCorrelativeScanMatcher2D(
     const ProbabilityGrid& probability_grid,
-    const FastCorrelativeScanMatcherOptions2D& options)
+    const options::FastCorrelativeScanMatcherOptions& options)
     : options_(options),
       limits_(probability_grid.map_limits()),
       precomputation_grid_stack_(std::make_unique<PrecomputationGridStack2D>(
           probability_grid, options)) {
+  LOG(INFO) << "FastCorrelativeScanMatcherOptions, linear_search_window = "
+            << options.linear_search_window
+            << ", angular_search_window = " << options.angular_search_window
+            << ", branch_and_bound_depth = " << options.branch_and_bound_depth;
+
   // for (int depth = 0; depth < options.branch_and_bound_depth; ++depth) {
   //   const PrecomputationGrid2D& precomputation_grid =
   //       precomputation_grid_stack_->Get(depth);
@@ -121,10 +126,10 @@ bool FastCorrelativeScanMatcher2D::MatchLocalSubmap(
     const transform::Rigid2d& initial_pose_estimate,
     const std::vector<Eigen::Vector3d>& point_cloud, const float min_score,
     float* score, transform::Rigid2d* pose_estimate) const {
-  // LOG(INFO) << "initial_localization_linear_search_window = " <<
-  // options_.initial_localization_linear_search_window(); LOG(INFO) <<
-  // "initial_localization_angular_search_window = "  <<
-  // options_.initial_localization_angular_search_window();
+  LOG(INFO) << "local search linear_search_window = "
+            << options_.linear_search_window;
+  LOG(INFO) << "local search angular_search_window = "
+            << options_.angular_search_window;
 
   const SearchParameters search_parameters(options_.linear_search_window,
                                            options_.angular_search_window,

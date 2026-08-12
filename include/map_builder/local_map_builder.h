@@ -32,6 +32,7 @@
 #include <memory>
 #include <vector>
 
+#include "common/options.h"
 #include "common/rigid_transform.h"
 #include "include/map_builder/active_map.h"
 #include "include/map_builder/icp_aligner.h"
@@ -44,7 +45,7 @@
 namespace solex_robot::navigation::localization_2d {
 class LocalMapBuilder {
  public:
-  LocalMapBuilder();
+  LocalMapBuilder(const options::LocalMapBuilderOptions options);
 
   void AddLaserData(const sensor::LaserDataPtr& laser_data,
                     transform::Rigid2d* pose_estimate, float* score,

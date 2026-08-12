@@ -39,9 +39,6 @@ namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr double kDegreeToRadian = M_PI / 180.0;
 
-constexpr int kOptimizeNodeInterval = 10;
-constexpr int kMaxNodeBufferLength = 40;
-
 constexpr int kMaxIterationsNum = 50;
 constexpr int kThreadNum = 8;
 
@@ -49,11 +46,7 @@ constexpr std::array<double, 6> kInterFrameWeight = {1.e3, 1.e3, 1.e3,
                                                      1.e2, 1.e2, 1.e2};
 constexpr std::array<double, 6> kFixedPoseWeiht = {1.e2, 1.e2, 1.e2,
                                                    10.0, 10.0, 10.0};
-
 constexpr int kFixedPoseHuberLoss = 20.0;
-constexpr int kMinTrackConstraintScore = 0.3;
-constexpr int kMinGlobalLocalizationScore = 0.3;
-constexpr int kMinRelocalizationScore = 0.4;
 
 Eigen::Matrix4d ToMatrix4d(const transform::Rigid2d& rigid_pose) {
   Eigen::Matrix4d eigen_pose = Eigen::Matrix4d::Identity();
@@ -93,7 +86,7 @@ void PoseGraph::ComputeTrackConstraint(
   ceres_scan_matcher_->Match(real_time_pose_estimate, constraint_data->points,
                              *probability_grid_, &ceres_pose_estimate,
                              &ceres_match_score);
-  if (ceres_match_score < kMinTrackConstraintScore) {
+  if (ceres_match_score < options_.min_tracking_score) {
     return;
   }
 
@@ -146,8 +139,8 @@ void PoseGraph::ComputeGlobalConstraint(
   float fast_match_score = 0.f;
   transform::Rigid2d fast_pose_estimate;
   fast_correlative_scan_matcher_->MatchFullSubmap(
-      constraint_data->points, kMinGlobalLocalizationScore, &fast_match_score,
-      &fast_pose_estimate);
+      constraint_data->points, options_.min_global_localization_score,
+      &fast_match_score, &fast_pose_estimate);
 
   float ceres_match_score = 0.0;
   transform::Rigid2d ceres_pose_estimate;
@@ -159,7 +152,7 @@ void PoseGraph::ComputeGlobalConstraint(
             << fast_pose_estimate.rotation().angle()
             << "], fast_match_score = " << fast_match_score
             << ", ceres_match_score = " << ceres_match_score;
-  if (ceres_match_score < kMinGlobalLocalizationScore) {
+  if (ceres_match_score < options_.min_global_localization_score) {
     return;
   }
 
@@ -182,7 +175,8 @@ void PoseGraph::ComputeLocalConstraint(
   transform::Rigid2d fast_pose_estimate;
   fast_correlative_scan_matcher_->MatchLocalSubmap(
       constraint_data->initial_pose_estimate, constraint_data->points,
-      kMinRelocalizationScore, &fast_match_score, &fast_pose_estimate);
+      options_.min_relocalization_score, &fast_match_score,
+      &fast_pose_estimate);
 
   float ceres_match_score = 0.0;
   transform::Rigid2d ceres_pose_estimate;
@@ -194,7 +188,7 @@ void PoseGraph::ComputeLocalConstraint(
             << fast_pose_estimate.rotation().angle()
             << "], fast_match_score = " << fast_match_score
             << ", ceres_match_score = " << ceres_match_score;
-  if (ceres_match_score < kMinRelocalizationScore) {
+  if (ceres_match_score < options_.min_relocalization_score) {
     return;
   }
 
@@ -210,7 +204,7 @@ void PoseGraph::ComputeLocalConstraint(
 }
 
 void PoseGraph::TrimNodeBuffer() {
-  while (node_buffer_.size() > kMaxNodeBufferLength) {
+  while (node_buffer_.size() > options_.max_node_buffer_length) {
     node_buffer_.pop_front();
   }
 }
@@ -323,23 +317,14 @@ void PoseGraph::Init() {
 
   ceres_scan_matcher_ = std::make_shared<CeresScanMatcher2D>();
 
-  RealTimeCorrelativeScanMatcherOptions2D real_time_options;
-  real_time_options.linear_search_window = 0.2;
-  real_time_options.angular_search_window = 2.5 * kDegreeToRadian;
-  real_time_options.translation_delta_cost_weight = 10;
-  real_time_options.rotation_delta_cost_weight = 0.1;
   real_time_correlative_scan_matcher_ =
-      std::make_shared<RealTimeCorrelativeScanMatcher2D>(real_time_options);
-
-  FastCorrelativeScanMatcherOptions2D fast_options;
-  fast_options.linear_search_window = 8.0;
-  fast_options.angular_search_window = M_PI / 6.0;
-  fast_options.branch_and_bound_depth = 7;
+      std::make_shared<RealTimeCorrelativeScanMatcher2D>(
+          options_.real_time_correlative_scan_matcher_options);
 
   const auto t0 = std::chrono::steady_clock::now();
   fast_correlative_scan_matcher_ =
-      std::make_shared<FastCorrelativeScanMatcher2D>(*probability_grid_,
-                                                     fast_options);
+      std::make_shared<FastCorrelativeScanMatcher2D>(
+          *probability_grid_, options_.fast_correlative_scan_matcher_options);
   const auto t1 = std::chrono::steady_clock::now();
   LOG(INFO)
       << "FastCorrelativeScanMatcher2D takes "
@@ -408,7 +393,7 @@ void PoseGraph::OptimizationLoop() {
               ConstraintType::kGlobal ||
           candidate_node->constraint_data->constraint_type ==
               ConstraintType::kLocal ||
-          node_interval_ > kOptimizeNodeInterval) {
+          node_interval_ > options_.optimize_every_nodes) {
         // 执行全局优化
 
         GlobalOptimize();

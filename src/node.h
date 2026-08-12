@@ -40,6 +40,7 @@
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "solex_msgs/srv/global_localization.hpp"
 #include "src/localization.h"
+#include "common/options.h"
 
 namespace solex_robot::navigation::localization_2d {
 class LocalizationNode : public rclcpp::Node {
@@ -49,6 +50,8 @@ class LocalizationNode : public rclcpp::Node {
   LocalizationNode();
   ~LocalizationNode() = default;
 
+ private:
+  options::LocalizationOptions LoadOptions();
   void HandleScanMessage(const sensor_msgs::msg::LaserScan::SharedPtr msg);
   void HandleOdometryMessage(const nav_msgs::msg::Odometry::SharedPtr msg);
   void HandleImuMessage(const sensor_msgs::msg::Imu::SharedPtr msg);
@@ -64,6 +67,9 @@ class LocalizationNode : public rclcpp::Node {
   void PublishLocalMap();
 
  private:
+  const options::LocalizationOptions options_;
+  const std::unique_ptr<Localization> locator_;
+
   // subscriber
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_subscriber_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odometry_subscriber_;
@@ -87,7 +93,6 @@ class LocalizationNode : public rclcpp::Node {
 
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::TimerBase::SharedPtr local_map_timer_;
-  std::unique_ptr<Localization> locator_;
 
   std::mutex mutex_;
 };
