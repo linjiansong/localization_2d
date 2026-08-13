@@ -48,11 +48,10 @@ class LocalizationNode : public rclcpp::Node {
  private:
   /* data */
  public:
-  LocalizationNode();
+  explicit LocalizationNode(const options::LocalizationOptions& options);
   ~LocalizationNode() = default;
 
  private:
-  options::LocalizationOptions LoadOptions();
   void HandleScanMessage(const sensor_msgs::msg::LaserScan::SharedPtr msg);
   void HandleOdometryMessage(const nav_msgs::msg::Odometry::SharedPtr msg);
   void HandleImuMessage(const sensor_msgs::msg::Imu::SharedPtr msg);

@@ -44,14 +44,14 @@
 namespace solex_robot::navigation::localization_2d {
 namespace {
 constexpr double kSecondToNanoSecond = 1.e9;
-constexpr double kDegreeToRadian = M_PI / 180.0;
 }  // namespace
 
-LocalizationNode::LocalizationNode()
+LocalizationNode::LocalizationNode(const options::LocalizationOptions& options)
     : rclcpp::Node("sensor_subscriber_node"),
-      options_(LoadOptions()),
-      locator_(std::make_unique<Localization>(
-          options_.local_map_builder_options, options_.pose_graph_options)) {
+      options_(options),
+      locator_(std::make_unique<Localization>(options.local_map_builder_options,
+                                              options.pose_graph_options,
+                                              options.localization_status_options)) {
   // 使用 SensorDataQoS，这对于传感器高频数据至关重要
   auto qos = rclcpp::SensorDataQoS();
 
@@ -140,113 +140,6 @@ LocalizationNode::LocalizationNode()
   LOG(INFO) << "Sensor Subscriber Node has been started.";
 }
 
-options::LocalizationOptions LocalizationNode::LoadOptions() {
-  options::LocalizationOptions options;
-
-  // SensorOptions
-  options.sensor_options.laser_topic =
-      this->declare_parameter("sensors.lidar.topic", "/scan");
-  options.sensor_options.use_laser =
-      this->declare_parameter("sensors.lidar.enabled", true);
-  options.sensor_options.imu_topic =
-      this->declare_parameter("sensors.imu.topic", "/imu/data");
-  options.sensor_options.use_imu =
-      this->declare_parameter("sensors.imu.enabled", true);
-  options.sensor_options.odometry_topic =
-      this->declare_parameter("sensors.odom.topic", "/odom");
-  options.sensor_options.use_odometry =
-      this->declare_parameter("sensors.odom.enabled", true);
-
-  // LocalMapBuilderOptions
-  options.local_map_builder_options.use_real_time_correlative_scan_match =
-      this->declare_parameter(
-          std::string("local_map_builder.use_online_correlative_scan_match"),
-          true);
-  std::string prefix = "local_map_builder.real_time_correlative_scan_matcher.";
-  options.local_map_builder_options.real_time_correlative_scan_matcher_options
-      .linear_search_window = this->declare_parameter(
-      prefix + std::string("linear_search_window"), 0.1);
-  options.local_map_builder_options.real_time_correlative_scan_matcher_options
-      .angular_search_window =
-      this->declare_parameter(prefix + std::string("angular_search_window"),
-                              5.0) *
-      kDegreeToRadian;
-  options.local_map_builder_options.real_time_correlative_scan_matcher_options
-      .translation_delta_cost_weight = this->declare_parameter(
-      prefix + std::string("translation_delta_cost_weight"), 10.0);
-  options.local_map_builder_options.real_time_correlative_scan_matcher_options
-      .rotation_delta_cost_weight = this->declare_parameter(
-      prefix + std::string("rotation_delta_cost_weight"), 0.1);
-
-  // Motion Filter
-  prefix = "local_map_builder.motion_filter.";
-  options.local_map_builder_options.motion_filter_options.max_time_seconds =
-      (float)this->declare_parameter(prefix + std::string("max_time_seconds"),
-                                     5.0);
-  options.local_map_builder_options.motion_filter_options.max_distance =
-      (float)this->declare_parameter(prefix + std::string("max_distance"), 0.2);
-  options.local_map_builder_options.motion_filter_options.max_angle =
-      (float)this->declare_parameter(prefix + std::string("max_angle"), 5.0) *
-      kDegreeToRadian;
-
-  // Pose Graph
-  prefix = "pose_graph.";
-  options.pose_graph_options.optimize_every_nodes =
-      this->declare_parameter(prefix + std::string("optimize_every_nodes"), 10);
-  options.pose_graph_options.max_node_buffer_length = this->declare_parameter(
-      prefix + std::string("max_node_buffer_length"), 40);
-  options.pose_graph_options.min_global_localization_score =
-      (float)this->declare_parameter(
-          prefix + std::string("min_global_localization_score"), 0.8);
-  options.pose_graph_options.min_relocalization_score =
-      (float)this->declare_parameter(
-          prefix + std::string("min_relocalization_score"), 0.6);
-  options.pose_graph_options.min_tracking_score =
-      (float)this->declare_parameter(prefix + std::string("min_tracking_score"),
-                                     0.5);
-
-  // Real Time Correlative Scan Match
-  prefix = "pose_graph.real_time_correlative_scan_matcher.";
-  options.pose_graph_options.real_time_correlative_scan_matcher_options
-      .linear_search_window = this->declare_parameter(
-      prefix + std::string("linear_search_window"), 0.1);
-  options.pose_graph_options.real_time_correlative_scan_matcher_options
-      .angular_search_window =
-      this->declare_parameter(prefix + std::string("angular_search_window"),
-                              5.0) *
-      kDegreeToRadian;
-  options.pose_graph_options.real_time_correlative_scan_matcher_options
-      .translation_delta_cost_weight = this->declare_parameter(
-      prefix + std::string("translation_delta_cost_weight"), 10.0);
-  options.pose_graph_options.real_time_correlative_scan_matcher_options
-      .rotation_delta_cost_weight = this->declare_parameter(
-      prefix + std::string("rotation_delta_cost_weight"), 0.1);
-
-  // Fast Correlative Scan Match
-  prefix = "pose_graph.fast_correlative_scan_matcher.";
-  options.pose_graph_options.fast_correlative_scan_matcher_options
-      .linear_search_window = this->declare_parameter(
-      prefix + std::string("linear_search_window"), 8.0);
-  options.pose_graph_options.fast_correlative_scan_matcher_options
-      .angular_search_window =
-      this->declare_parameter(prefix + std::string("angular_search_window"),
-                              30.0) *
-      kDegreeToRadian;
-  options.pose_graph_options.fast_correlative_scan_matcher_options
-      .branch_and_bound_depth = this->declare_parameter(
-      prefix + std::string("branch_and_bound_depth"), 6);
-
-  LOG(INFO) << "***************** Current Node Parameters *****************";
-  auto all_params = this->get_parameters(this->list_parameters({}, 10).names);
-  for (const auto& param : all_params) {
-    LOG(INFO) << "Name: " << param.get_name()
-              << " | Value: " << param.value_to_string();
-  }
-  LOG(INFO) << "***********************************************************";
-
-  return options;
-}
-
 void LocalizationNode::HandleScanMessage(
     const sensor_msgs::msg::LaserScan::SharedPtr msg) {
   CHECK_NOTNULL(msg);
@@ -271,7 +164,7 @@ void LocalizationNode::HandleScanMessage(
                 << laser_to_base_transform.matrix();
     } catch (tf2::TransformException& ex) {
       LOG(ERROR) << "Could not get transform from " << msg->header.frame_id
-                 << "to base_link";
+                 << " to base_link";
       return;  // 如果还没获取到TF，暂时跳过该帧
     }
   }
@@ -356,7 +249,7 @@ void LocalizationNode::HandleImuMessage(
                 << imu_to_base_transform.matrix();
     } catch (tf2::TransformException& ex) {
       LOG(ERROR) << "Could not get transform from " << msg->header.frame_id
-                 << "to base_link";
+                 << " to base_link";
       return;  // 如果还没获取到TF，暂时跳过该帧
     }
   }

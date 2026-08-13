@@ -37,14 +37,20 @@ struct SensorOptions {
   bool use_odometry = false;
 };
 
+struct LocalizationStatusOptions {
+  float min_match_score = 0.f;
+  float max_roaming_distance = 0.f;  // meter
+  float max_roaming_angle = 0.f;     // degree
+};
+
 struct FastCorrelativeScanMatcherOptions {
   // 线性搜索窗口的大小（以米为单位）。
   // 这个参数决定了在多大的范围内进行平移搜索。
-  double linear_search_window = 0.0;
+  float linear_search_window = 0.f;
 
   // 角度搜索窗口的大小（以弧度为单位）。
   // 这个参数决定了在多大的范围内进行旋转搜索。
-  double angular_search_window = 0.0;
+  float angular_search_window = 0.f;
 
   // 分支定界算法（Branch-and-Bound）所使用的查找表层数。
   // Cartographer 会为地图构建多分辨率的查找表（类似图像金字塔），
@@ -54,22 +60,22 @@ struct FastCorrelativeScanMatcherOptions {
 
 struct RealTimeCorrelativeScanMatcherOptions {
   // 线性搜索窗口的大小（单位：米），用于限定在哪个范围内寻找最佳平移对齐位置
-  double linear_search_window = 0.0;
+  float linear_search_window = 0.f;
 
   // 角度搜索窗口的大小（单位：弧度），用于限定在哪个范围内寻找最佳旋转对齐角度
-  double angular_search_window = 0.0;
+  float angular_search_window = 0.f;
 
   // 平移变化惩罚权重（用于对偏离初始估计的平移施加惩罚得分）
-  double translation_delta_cost_weight = 0.0;
+  float translation_delta_cost_weight = 0.f;
 
   // 旋转变化惩罚权重（用于对偏离初始估计的旋转施加惩罚得分）
-  double rotation_delta_cost_weight = 0.0;
+  float rotation_delta_cost_weight = 0.f;
 };
 
 struct MotionFilterOptions {
-  float max_time_seconds = 0.f;     // second
+  float max_time = 0.f;      // second
   float max_distance = 0.f;  // meter
-  float max_angle = 0.f;    // degree
+  float max_angle = 0.f;     // degree
 };
 
 struct PoseGraphOptions {
@@ -92,6 +98,7 @@ struct LocalMapBuilderOptions {
 
 struct LocalizationOptions {
   SensorOptions sensor_options;
+  LocalizationStatusOptions localization_status_options;
   LocalMapBuilderOptions local_map_builder_options;
   PoseGraphOptions pose_graph_options;
 };

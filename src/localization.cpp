@@ -183,20 +183,37 @@ void Localization::EvaluateLocalizationStatus(
     const sensor::LaserDataPtr& laser_data) {
   const float score = CalculateMatchScore(laser_data);
   std::unique_lock<std::mutex> lock(localization_status_mutex_);
-  if (score > 0.3) {
+  if (score > localization_status_options_.min_match_score) {
     if (localization_status_ == LocalizationStatus::kSuccess) {
       return;
     } else {
       localization_status_ = LocalizationStatus::kSuccess;
-      roaming_distance_ = 0.0;
-      roaming_angle_ = 0.0;
+      roaming_distance_ = 0.f;
+      roaming_angle_ = 0.f;
     }
   } else {
+    const transform::Rigid2d curr_roaming_pose = transform::Project2D(
+        pose_extrapolator_->ExtrapolatePose(laser_data->timestamp()));
     if (localization_status_ == LocalizationStatus::kSuccess) {
       localization_status_ = LocalizationStatus::kRoaming;
+      prev_roaming_pose_ = curr_roaming_pose;
     } else if (localization_status_ == LocalizationStatus::kRoaming) {
-      if (roaming_distance_ > kMaxRoamingDistance ||
-          roaming_angle_ > kMaxRoamingAngle) {
+      const transform::Rigid2d delta_transform =
+          prev_roaming_pose_.inverse() * curr_roaming_pose;
+      roaming_distance_ += delta_transform.translation().norm();
+      roaming_angle_ += std::abs(
+          std::remainder(delta_transform.rotation().angle(), 2.0f * M_PI));
+      prev_roaming_pose_ = curr_roaming_pose;
+      LOG(INFO) << "delta_transform.rotation().angle() = "
+                << std::remainder(delta_transform.rotation().angle(),
+                                  2.0f * M_PI);
+
+      LOG_EVERY_N(INFO, 100)
+          << "Robot is in roaming status: distance = " << roaming_distance_
+          << ", angle = " << roaming_angle_;
+      if (roaming_distance_ >
+              localization_status_options_.max_roaming_distance ||
+          roaming_angle_ > localization_status_options_.max_roaming_angle) {
         localization_status_ = LocalizationStatus::kFailed;
         LOG(INFO) << "Localize failed!";
       }

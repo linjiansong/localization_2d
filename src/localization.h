@@ -44,10 +44,13 @@ namespace solex_robot::navigation::localization_2d {
 
 class Localization {
  public:
-  Localization(const options::LocalMapBuilderOptions& local_map_builder_options,
-               const options::PoseGraphOptions& pose_graph_options)
+  Localization(
+      const options::LocalMapBuilderOptions& local_map_builder_options,
+      const options::PoseGraphOptions& pose_graph_options,
+      const options::LocalizationStatusOptions& localization_status_options)
       : local_map_builder_options_(local_map_builder_options),
-        pose_graph_options_(pose_graph_options) {}
+        pose_graph_options_(pose_graph_options),
+        localization_status_options_(localization_status_options) {}
 
   ~Localization();
 
@@ -77,6 +80,7 @@ class Localization {
  private:
   const options::LocalMapBuilderOptions local_map_builder_options_;
   const options::PoseGraphOptions pose_graph_options_;
+  const options::LocalizationStatusOptions localization_status_options_;
   std::shared_ptr<ProbabilityGrid> probability_grid_;
   std::shared_ptr<LocalMapBuilder> local_map_builder_;
   std::shared_ptr<PoseExtrapolator> pose_extrapolator_;
@@ -85,8 +89,9 @@ class Localization {
   transform::Rigid2d initial_pose_;
   LocalizationStatus localization_status_ = LocalizationStatus::kUnknown;
   std::mutex localization_status_mutex_;
-
-  double roaming_distance_ = 0.0;
-  double roaming_angle_ = 0.0;
+  
+  transform::Rigid2d prev_roaming_pose_;
+  float roaming_distance_ = 0.0;
+  float roaming_angle_ = 0.0;
 };
 }  // namespace solex_robot::navigation::localization_2d

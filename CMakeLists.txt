@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the build type." FORCE)
 
 find_package(ament_cmake REQUIRED)
+find_package(yaml-cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
@@ -68,8 +69,8 @@ ament_target_dependencies(localization_2d_node
 )
 
 target_link_libraries(localization_2d_node
-  ${cartographer_ros_msgs_TARGETS}
   ${PCL_LIBRARIES}
+  yaml-cpp
   Eigen3::Eigen
   ${CERES_LIBRARIES}
   ${GLOG_LIBRARIES}

@@ -1,0 +1,47 @@
+sensors:
+  lidar:
+    topic: "/scan"
+    enabled: true
+  imu:
+    topic: "/imu/data"
+    enabled: true
+  odom:
+    topic: "/odom"
+    enabled: true
+
+localization_status:
+  min_match_score : 0.5
+  max_roaming_distance: 100.0 # meter
+  max_roaming_angle: 1800.0 # degree
+
+local_map_builder:
+  use_online_correlative_scan_match: true
+
+  real_time_correlative_scan_matcher:
+    linear_search_window: 0.1 # meter
+    angular_search_window: 5.0 # degree
+    translation_delta_cost_weight: 10.0
+    rotation_delta_cost_weight: 0.1
+
+  motion_filter:
+    max_time: 5.0 # second
+    max_distance: 0.2 # meter
+    max_angle: 5.0 # degree
+
+pose_graph:
+  optimize_every_nodes: 10
+  max_node_buffer_length: 40
+  min_global_localization_score: 0.3
+  min_relocalization_score: 0.3
+  min_tracking_score: 0.3
+
+  real_time_correlative_scan_matcher:
+    linear_search_window: 0.1 # meter
+    angular_search_window: 5.0 # degree
+    translation_delta_cost_weight: 10.0
+    rotation_delta_cost_weight: 0.1
+
+  fast_correlative_scan_matcher:
+    linear_search_window: 8.0 # meter
+    angular_search_window: 30.0 # degree
+    branch_and_bound_depth: 5

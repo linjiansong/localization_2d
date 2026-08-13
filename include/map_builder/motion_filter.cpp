@@ -34,11 +34,10 @@ bool MotionFilter::IsSimilar(const double time,
       << "Motion filter reduced the number of nodes to "
       << 100. * num_different_ / num_total_ << "%.";
   ++num_total_;
-  if (num_total_ > 1 && time - last_time_ <= options_.max_time_seconds &&
+  if (num_total_ > 1 && time - last_time_ <= options_.max_time &&
       (pose.translation() - last_pose_.translation()).norm() <=
           options_.max_distance &&
-      transform::GetAngle(pose.inverse() * last_pose_) <=
-          options_.max_angle) {
+      transform::GetAngle(pose.inverse() * last_pose_) <= options_.max_angle) {
     return true;
   }
 
